@@ -9,43 +9,60 @@
   <meta name="theme-color" content="#0f172a">
 </head>
 <body>
-  <header>
-    <h1>💰 Invested</h1>
-    <p>Your personal wealth dashboard</p>
-  </header>
+  <div id="auth-section" class="card" style="max-width: 420px; margin: 5rem auto;">
+    <h2>🔐 Login</h2>
+    <input type="email" id="email" placeholder="Email" autocomplete="email">
+    <input type="password" id="password" placeholder="Password" autocomplete="current-password">
+    <div class="auth-actions">
+      <button id="btn-login">Login</button>
+      <button id="btn-register" class="secondary">Create Account</button>
+    </div>
+    <div id="auth-error"></div>
+  </div>
 
-  <main>
-    <section class="summary card">
-      <h2>Net Worth</h2>
-      <div class="amount" id="net-worth">RM 0</div>
-      <div class="change positive" id="net-change">+0.00%</div>
-    </section>
-
-    <section class="holdings">
-      <h2>Holdings</h2>
-      <div class="grid" id="holdings-grid">
-        <!-- Filled by JS -->
+  <div id="app-section" style="display:none;">
+    <header>
+      <div class="header-top">
+        <div>
+          <h1>💰 Invested</h1>
+          <p>Your personal wealth dashboard</p>
+        </div>
+        <div class="user-meta">
+          <small id="user-email"></small>
+          <button id="btn-logout" class="text-btn">Logout</button>
+        </div>
       </div>
-    </section>
+    </header>
 
-    <section class="properties">
-      <h2>Properties</h2>
-      <div class="grid" id="properties-grid">
-        <!-- Filled by JS -->
-      </div>
-    </section>
+    <main>
+      <section class="summary card">
+        <h2>Net Worth</h2>
+        <div class="amount" id="net-worth">RM 0</div>
+        <div class="change positive" id="net-change">+0.00%</div>
+      </section>
 
-    <section class="actions">
-      <button id="add-holding">+ Add Holding</button>
-      <button id="add-property">+ Add Property</button>
-    </section>
-  </main>
+      <section class="holdings">
+        <h2>Holdings</h2>
+        <div class="grid" id="holdings-grid"></div>
+      </section>
 
-  <footer>
-    <small>Invested v0.1 — Static portal. Data stored in browser localStorage.</small>
-  </footer>
+      <section class="properties">
+        <h2>Properties</h2>
+        <div class="grid" id="properties-grid"></div>
+      </section>
 
-  <script src="app.js"></script>
+      <section class="actions">
+        <button id="add-holding">+ Add Holding</button>
+        <button id="add-property">+ Add Property</button>
+      </section>
+    </main>
+
+    <footer>
+      <small>Invested v0.2 — Synced via Firebase</small>
+    </footer>
+  </div>
+
+  <script type="module" src="app.js"></script>
   <script>
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').catch(console.error);
