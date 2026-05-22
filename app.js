@@ -9,15 +9,16 @@ import {
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 
 // ═══════════════════════════════════════════════
-// 🔥 PASTE YOUR FIREBASE CONFIG HERE
+// 🔥 YOUR LIVE FIREBASE CONFIG (ainvested-703ec)
 // ═══════════════════════════════════════════════
 const firebaseConfig = {
-  apiKey:            "AIzaSy...",
-  authDomain:        "YOUR-PROJECT.firebaseapp.com",
-  projectId:         "YOUR-PROJECT",
-  storageBucket:     "YOUR-PROJECT.appspot.com",
-  messagingSenderId: "123456789",
-  appId:             "1:123456..."
+  apiKey:            "AIzaSyC2fezwrXSOeDCytG84RES-dJ04teLvmuo",
+  authDomain:        "ainvested-703ec.firebaseapp.com",
+  projectId:         "ainvested-703ec",
+  storageBucket:     "ainvested-703ec.firebasestorage.app",
+  messagingSenderId: "453797298902",
+  appId:             "1:453797298902:web:ea0018b9a52dd73eaaff77",
+  measurementId:     "G-HD4J2B5T80"
 };
 
 const app = initializeApp(firebaseConfig);
