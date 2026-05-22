@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Invested — Net Worth Tracker</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f172a">
+</head>
+<body>
+  <header>
+    <h1>💰 Invested</h1>
+    <p>Your personal wealth dashboard</p>
+  </header>
+
+  <main>
+    <section class="summary card">
+      <h2>Net Worth</h2>
+      <div class="amount" id="net-worth">RM 0</div>
+      <div class="change positive" id="net-change">+0.00%</div>
+    </section>
+
+    <section class="holdings">
+      <h2>Holdings</h2>
+      <div class="grid" id="holdings-grid">
+        <!-- Filled by JS -->
+      </div>
+    </section>
+
+    <section class="properties">
+      <h2>Properties</h2>
+      <div class="grid" id="properties-grid">
+        <!-- Filled by JS -->
+      </div>
+    </section>
+
+    <section class="actions">
+      <button id="add-holding">+ Add Holding</button>
+      <button id="add-property">+ Add Property</button>
+    </section>
+  </main>
+
+  <footer>
+    <small>Invested v0.1 — Static portal. Data stored in browser localStorage.</small>
+  </footer>
+
+  <script src="app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(console.error);
+    }
+  </script>
+</body>
+</html>
