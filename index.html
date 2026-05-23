@@ -4,68 +4,204 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Invested — Net Worth Tracker</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=11">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0f172a">
 </head>
 <body>
-  <div id="auth-section" class="card" style="max-width: 420px; margin: 5rem auto;">
-    <h2>🔐 Login</h2>
-    <input type="email" id="email" placeholder="Email" autocomplete="email">
-    <input type="password" id="password" placeholder="Password" autocomplete="current-password">
-    <div class="auth-actions">
-      <button id="btn-login">Login</button>
-      <button id="btn-register" class="secondary">Create Account</button>
+
+  <!-- ============ AUTH SCREEN ============ -->
+  <div id="auth-section" style="max-width:420px;margin:5rem auto;padding:1.5rem;">
+    <div class="brand center" style="font-size:2rem;margin-bottom:0.25rem">Invested</div>
+    <div class="subtitle center" style="margin-bottom:1.5rem;color:var(--muted)">Net Worth Tracker</div>
+
+    <div id="login-panel">
+      <h4 class="center" style="margin-bottom:0.75rem">Sign In</h4>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="email" placeholder="you@email.com" autocomplete="email">
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="password" placeholder="Password" autocomplete="current-password">
+      </div>
+      <button class="btn-primary full" id="btn-login" style="margin-top:0.5rem">Login</button>
+      <p class="center" style="margin-top:0.75rem;color:var(--muted);font-size:0.75rem">No account? <a href="#" id="link-register" class="link">Register</a></p>
+      <div id="auth-error" class="hint center" style="color:var(--danger);margin-top:0.5rem;min-height:1.2em"></div>
     </div>
-    <div id="auth-error"></div>
+
+    <div id="register-panel" style="display:none">
+      <h4 class="center" style="margin-bottom:0.75rem">Create Account</h4>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="reg-email" placeholder="you@email.com" autocomplete="email">
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="reg-password" placeholder="6+ characters" autocomplete="new-password">
+      </div>
+      <div class="field">
+        <label>Confirm Password</label>
+        <input type="password" id="reg-password2" placeholder="Repeat password" autocomplete="new-password">
+      </div>
+      <button class="btn-primary full" id="btn-register" style="margin-top:0.5rem">Create Account</button>
+      <p class="center" style="margin-top:0.75rem;color:var(--muted);font-size:0.75rem">Already have one? <a href="#" id="link-login" class="link">Sign In</a></p>
+      <div id="reg-error" class="hint center" style="color:var(--danger);margin-top:0.5rem;min-height:1.2em"></div>
+    </div>
   </div>
 
+  <!-- ============ MAIN APP ============ -->
   <div id="app-section" style="display:none;">
-    <header>
-      <div class="header-top">
-        <div>
-          <h1>💰 Invested</h1>
-          <p>Your personal wealth dashboard</p>
-        </div>
-        <div class="user-meta">
-          <small id="user-email"></small>
-          <button id="btn-logout" class="text-btn">Logout</button>
-        </div>
+    <header class="topbar">
+      <div class="brand">Invested</div>
+      <div class="user-meta">
+        <small id="user-email"></small>
+        <button id="btn-logout" class="text-btn">Logout</button>
       </div>
     </header>
 
-    <main>
-      <section class="summary card">
-        <h2>Net Worth</h2>
-        <div class="amount" id="net-worth">RM 0</div>
-        <div class="change positive" id="net-change">+0.00%</div>
+    <!-- Top-level tabs -->
+    <nav class="main-tabs" id="main-tabs">
+      <button class="main-tab active" data-tab="home">Home</button>
+      <button class="main-tab" data-tab="asset">Asset</button>
+      <button class="main-tab" data-tab="spent">Spent</button>
+    </nav>
+
+    <!-- ===== HOME TAB ===== -->
+    <main id="tab-home" class="tab-pane active">
+      <section class="summary-row card">
+        <div>
+          <div class="hero-label">Net Worth</div>
+          <div class="hero-amount" id="home-net-worth">RM 0</div>
+        </div>
+        <div style="text-align:right">
+          <button id="btn-refresh" class="refresh-btn" title="Refresh prices">⟳ Refresh</button>
+          <div class="hero-meta" style="margin-top:0.4rem">
+            <span class="pill" id="home-asset-count">0 assets</span>
+            <span class="pill" id="home-last-updated">Updated today</span>
+          </div>
+        </div>
       </section>
 
-      <section class="holdings">
-        <h2>Holdings</h2>
-        <div class="grid" id="holdings-grid"></div>
-      </section>
+      <!-- Category summary cards -->
+      <div class="home-grid" id="home-categories">
+        <div class="home-card" data-cat="fund">
+          <div class="home-card-dot" style="background:#10b981"></div>
+          <div class="home-card-info">
+            <div class="home-card-label">Fund</div>
+            <div class="home-card-value" id="home-fund">RM 0</div>
+          </div>
+        </div>
+        <div class="home-card" data-cat="stock">
+          <div class="home-card-dot" style="background:#3b82f6"></div>
+          <div class="home-card-info">
+            <div class="home-card-label">Stock</div>
+            <div class="home-card-value" id="home-stock">RM 0</div>
+          </div>
+        </div>
+        <div class="home-card" data-cat="crypto">
+          <div class="home-card-dot" style="background:#f59e0b"></div>
+          <div class="home-card-info">
+            <div class="home-card-label">Crypto</div>
+            <div class="home-card-value" id="home-crypto">RM 0</div>
+          </div>
+        </div>
+        <div class="home-card" data-cat="ut">
+          <div class="home-card-dot" style="background:#8b5cf6"></div>
+          <div class="home-card-info">
+            <div class="home-card-label">Unit Trust</div>
+            <div class="home-card-value" id="home-ut">RM 0</div>
+          </div>
+        </div>
+        <div class="home-card" data-cat="gold">
+          <div class="home-card-dot" style="background:#06b6d4"></div>
+          <div class="home-card-info">
+            <div class="home-card-label">Gold</div>
+            <div class="home-card-value" id="home-gold">RM 0</div>
+          </div>
+        </div>
+      </div>
 
-      <section class="properties">
-        <h2>Properties</h2>
-        <div class="grid" id="properties-grid"></div>
-      </section>
-
-      <section class="actions">
-        <button id="add-holding">+ Add Holding</button>
-        <button id="add-property">+ Add Property</button>
+      <!-- Monthly spending card from SPENT -->
+      <section class="card" id="home-spending-card" style="margin-top:1rem;">
+        <div class="home-card-header">
+          <span>This Month's Spending</span>
+          <span id="home-spent-pct" style="font-size:0.75rem;color:var(--muted)">—</span>
+        </div>
+        <div class="hero-amount" id="home-spent" style="font-size:1.5rem;margin-top:0.3rem">RM 0</div>
+        <div id="home-spent-cats" style="margin-top:0.6rem"></div>
       </section>
     </main>
 
-    <footer>
-      <small>Invested v0.2 — Synced via Firebase</small>
-    </footer>
+    <!-- ===== ASSET TAB ===== -->
+    <main id="tab-asset" class="tab-pane" style="display:none">
+      <!-- Controls: Tabs + Sort + Currency -->
+      <div class="controls-row">
+        <div class="tabs" id="category-tabs">
+          <button class="tab active" data-filter="all">All</button>
+          <button class="tab" data-filter="fund">Fund</button>
+          <button class="tab" data-filter="stock">Stock</button>
+          <button class="tab" data-filter="crypto">Crypto</button>
+          <button class="tab" data-filter="ut">Unit Trust</button>
+          <button class="tab" data-filter="gold">Gold</button>
+        </div>
+        <div style="display:flex;gap:.4rem;align-items:center;flex-shrink:0">
+          <button class="sort-btn" id="btn-sort" title="Sort">↕ Value</button>
+          <button class="currency-btn active" id="btn-currency" title="Toggle currency">MYR</button>
+        </div>
+      </div>
+
+      <!-- Unified Assets Grid -->
+      <div class="assets-grid" id="assets-grid"></div>
+
+      <!-- Add Button -->
+      <section class="actions">
+        <button id="btn-add" class="btn-primary">+ Add Asset</button>
+      </section>
+    </main>
+
+    <!-- ===== SPENT TAB ===== -->
+    <main id="tab-spent" class="tab-pane" style="display:none">
+      <section class="summary-row card">
+        <div>
+          <div class="hero-label">This Month</div>
+          <div class="hero-amount" id="spent-month">RM 0</div>
+        </div>
+        <div style="text-align:right">
+          <div class="hero-meta" style="margin-top:0.4rem">
+            <span class="pill" id="spent-count">0 transactions</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" style="margin-top:1rem;">
+        <div class="section-title">By Category</div>
+        <div id="spent-cat-list"></div>
+      </section>
+
+      <section class="card" style="margin-top:1rem;">
+        <div class="section-title">Recent</div>
+        <div id="spent-recent-list"></div>
+      </section>
+    </main>
   </div>
 
-  <script type="module" src="app.js"></script>
+  <!-- ============ MODAL ============ -->
+  <div id="modal-overlay" class="modal-overlay" style="display:none">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="modal-title">Add Asset</h3>
+        <button id="modal-close" class="modal-close">×</button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+      <div class="modal-footer" id="modal-footer"></div>
+    </div>
+  </div>
+
+  <script type="module" src="app.js?v=11"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js').catch(console.error);
+      navigator.serviceWorker.register('sw.js?v=11').catch(console.error);
     }
   </script>
 </body>
