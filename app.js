@@ -308,38 +308,6 @@ function renderHome() {
     if (el) el.textContent = fmt(conv(catTotal));
   }
 
-  // Monthly spending from SPENT
-  const today = new Date();
-  const monthPrefix = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`;
-  const approved = spentExpenses.filter(e => e.status === 'approved' && e.date?.startsWith(monthPrefix));
-  const spentTotal = approved.reduce((s, e) => s + (e.amount || 0), 0);
-
-  document.getElementById('home-spent').textContent = fmt(conv(spentTotal));
-
-  const pct = total > 0 ? ((spentTotal / total) * 100).toFixed(1) : '0.0';
-  document.getElementById('home-spent-pct').textContent = `${pct}% of Net Worth`;
-
-  // Top 3 spending categories mini bars
-  const catSpend = {};
-  for (const e of approved) {
-    catSpend[e.category || 'Others'] = (catSpend[e.category || 'Others'] || 0) + (e.amount || 0);
-  }
-  const topCats = Object.entries(catSpend).sort((a,b) => b[1] - a[1]).slice(0,3);
-  const maxCat = topCats.length ? topCats[0][1] : 1;
-
-  let html = '';
-  for (const [cat, val] of topCats) {
-    const pctBar = maxCat > 0 ? (val / maxCat * 100) : 0;
-    html += `
-      <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.25rem">
-        <span style="font-size:.65rem;color:var(--muted);width:80px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${cat}</span>
-        <div style="flex:1;background:rgba(255,255,255,.06);border-radius:3px;height:5px;overflow:hidden">
-          <div style="width:${pctBar}%;height:100%;background:var(--accent);border-radius:3px"></div>
-        </div>
-        <span style="font-size:.65rem;width:60px;text-align:right">${fmt(conv(val))}</span>
-      </div>`;
-  }
-  document.getElementById('home-spent-cats').innerHTML = html || '<span style="font-size:.7rem;color:var(--muted)">No spending data</span>';
 }
 
 /* ═══════════════════ ASSET RENDER ═══════════════════ */

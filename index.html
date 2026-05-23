@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Invested — Net Worth Tracker</title>
-  <link rel="stylesheet" href="style.css?v=14">
+  <link rel="stylesheet" href="style.css?v=15">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0f172a">
 </head>
@@ -121,16 +121,6 @@
           </div>
         </div>
       </div>
-
-      <!-- Monthly spending card from SPENT -->
-      <section class="card" id="home-spending-card" style="margin-top:1rem;">
-        <div class="home-card-header">
-          <span>This Month's Spending</span>
-          <span id="home-spent-pct" style="font-size:0.75rem;color:var(--muted)">—</span>
-        </div>
-        <div class="hero-amount" id="home-spent" style="font-size:1.5rem;margin-top:0.3rem">RM 0</div>
-        <div id="home-spent-cats" style="margin-top:0.6rem"></div>
-      </section>
     </main>
 
     <!-- ===== ASSET TAB ===== -->
@@ -213,10 +203,10 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=14"></script>
+  <script type="module" src="app.js?v=15"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=14').catch(console.error);
+      navigator.serviceWorker.register('sw.js?v=15').catch(console.error);
     }
   </script>
 </body>
