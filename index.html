@@ -135,6 +135,21 @@
 
     <!-- ===== ASSET TAB ===== -->
     <main id="tab-asset" class="tab-pane">
+      <!-- Summary Row -->
+      <section class="summary-row card">
+        <div>
+          <div class="hero-label">Net Worth</div>
+          <div class="hero-amount" id="asset-net-worth">RM 0</div>
+        </div>
+        <div style="text-align:right">
+          <button id="btn-refresh" class="refresh-btn" title="Refresh prices">⟳ Refresh</button>
+          <div class="hero-meta" style="margin-top:0.4rem">
+            <span class="pill" id="asset-asset-count">0 assets</span>
+            <span class="pill" id="asset-last-updated">Updated today</span>
+          </div>
+        </div>
+      </section>
+
       <!-- Controls: Tabs + Sort + Currency -->
       <div class="controls-row">
         <div class="tabs" id="category-tabs">

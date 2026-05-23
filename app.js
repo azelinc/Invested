@@ -349,6 +349,14 @@ function renderAssets() {
   const assets = currentFilter === 'all' ? allAssets : allAssets.filter(a => a.category === currentFilter);
   const total = allAssets.reduce((s, a) => s + (a.value || 0), 0);
 
+  // Populate summary row
+  const nwEl = document.getElementById('asset-net-worth');
+  const cntEl = document.getElementById('asset-asset-count');
+  const updEl = document.getElementById('asset-last-updated');
+  if (nwEl) nwEl.textContent = fmt(conv(total));
+  if (cntEl) cntEl.textContent = `${allAssets.length} assets`;
+  if (updEl) updEl.textContent = 'Updated ' + new Date().toLocaleTimeString('en-MY', {hour:'2-digit', minute:'2-digit'});
+
   // Update sort/currency buttons
   const sortBtn = document.getElementById('btn-sort');
   if (sortBtn) sortBtn.textContent = sortMode === 'alpha' ? '↕ A–Z' : '↕ Value';
