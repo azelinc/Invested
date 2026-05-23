@@ -15,7 +15,7 @@ import {
 // 🔥 LIVE FIREBASE CONFIG
 // ═══════════════════════════════════════════════
 const firebaseConfig = {
-  apiKey:            "AIzaSy...vmuo",
+  apiKey:            "AIzaSyC2fezwrXSOeDCytG84RES-dJ04teLvmuo",
   authDomain:        "ainvested-703ec.firebaseapp.com",
   databaseURL:       "https://ainvested-703ec-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId:         "ainvested-703ec",
