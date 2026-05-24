@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Invested — Net Worth Tracker</title>
-  <link rel="stylesheet" href="style.css?v=15">
+  <link rel="stylesheet" href="style.css?v=16">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0f172a">
 </head>
@@ -120,6 +120,13 @@
             <div class="home-card-value" id="home-gold">RM 0</div>
           </div>
         </div>
+        <div class="home-card" data-cat="retirement">
+          <div class="home-card-dot" style="background:#f43f5e"></div>
+          <div class="home-card-info">
+            <div class="home-card-label">Retirement</div>
+            <div class="home-card-value" id="home-retirement">RM 0</div>
+          </div>
+        </div>
       </div>
     </main>
 
@@ -149,6 +156,7 @@
           <button class="tab" data-filter="crypto">Crypto</button>
           <button class="tab" data-filter="ut">Unit Trust</button>
           <button class="tab" data-filter="gold">Gold</button>
+          <button class="tab" data-filter="retirement">Retirement</button>
         </div>
         <div style="display:flex;gap:.4rem;align-items:center;flex-shrink:0">
           <button class="sort-btn" id="btn-sort" title="Sort">↕ Value</button>
@@ -203,10 +211,10 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=15"></script>
+  <script type="module" src="app.js?v=16"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=15').catch(console.error);
+      navigator.serviceWorker.register('sw.js?v=16').catch(console.error);
     }
   </script>
 </body>

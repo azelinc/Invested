@@ -222,11 +222,11 @@ let spentExpenses = [];
 
 const CAT_COLORS = {
   fund:'#10b981', stock:'#3b82f6', crypto:'#f59e0b',
-  ut:'#8b5cf6', gold:'#06b6d4', unknown:'#64748b'
+  ut:'#8b5cf6', gold:'#06b6d4', retirement:'#f43f5e', unknown:'#64748b'
 };
 const CAT_LABELS = {
   fund:'Fund', stock:'Stock', crypto:'Crypto',
-  ut:'Unit Trust', gold:'Gold', unknown:'Unknown'
+  ut:'Unit Trust', gold:'Gold', retirement:'Retirement', unknown:'Unknown'
 };
 
 function attachListeners(uid) {
@@ -276,6 +276,8 @@ async function seedIfEmpty(uid) {
     { name:'Solana', ticker:'SOL', category:'crypto', qty:45, price:0, priceSrc:'live', value:0 },
     { name:'Public Mutual', ticker:'PMUT', category:'ut', qty:5000, price:1, priceSrc:'fixed', value:5000 },
     { name:'Gold Bars', ticker:'GOLD', category:'gold', qty:50, price:380, priceSrc:'live', value:19000 },
+    { name:'KWSP EPF', ticker:'EPF', category:'retirement', qty:1, price:0, priceSrc:'fixed', value:150000 },
+    { name:'PRS Fund', ticker:'PRS', category:'retirement', qty:1, price:0, priceSrc:'fixed', value:25000 },
   ];
 
   for (const a of seed) {
@@ -301,7 +303,7 @@ function renderHome() {
   document.getElementById('home-last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString('en-MY', {hour:'2-digit', minute:'2-digit'});
 
   // Category totals
-  const cats = ['fund','stock','crypto','ut','gold'];
+  const cats = ['fund','stock','crypto','ut','gold','retirement'];
   for (const cat of cats) {
     const catTotal = allAssets.filter(a => a.category === cat).reduce((s, a) => s + (a.value || 0), 0);
     const el = document.getElementById(`home-${cat}`);
@@ -349,7 +351,7 @@ function renderAssets() {
 
   let html = '';
   for (const cat of Object.keys(byCat).sort((a,b) => {
-    const order = ['fund','stock','crypto','ut','gold','unknown'];
+    const order = ['fund','stock','crypto','ut','gold','retirement','unknown'];
     return order.indexOf(a) - order.indexOf(b);
   })) {
     const items = sortAssets(byCat[cat]);
@@ -554,7 +556,7 @@ function buildAssetForm(asset, isEdit) {
       <input type="number" id="m-qty" value="${asset?.qty ?? ''}" placeholder="Amount / Units">
     </div>`;
 
-  const isManual = (asset?.category === 'fund' || asset?.category === 'ut');
+  const isManual = (['fund','ut','retirement'].includes(asset?.category));
   const manualField = `
     <div class="field" id="m-value-wrap">
       <label>Value (RM)</label>
@@ -575,7 +577,7 @@ function buildAssetForm(asset, isEdit) {
 function wireCategoryToggle() {
   const sel = document.getElementById('m-category');
   const toggle = () => {
-    const manual = ['fund','ut'].includes(sel.value);
+    const manual = ['fund','ut','retirement'].includes(sel.value);
     const isGold = sel.value === 'gold';
     document.getElementById('m-value-wrap').style.display = manual ? 'block' : 'none';
     document.getElementById('m-price-wrap').style.display = isGold ? 'block' : (manual ? 'none' : 'block');
