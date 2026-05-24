@@ -301,7 +301,7 @@ function sortAssets(items) {
 }
 
 /* ═══════════════════ HOME RENDER ═══════════════════ */
-function renderHome() {
+async function renderHome() {
   const allAssets = currentAssets.map(a => a.category === 'physical' ? { ...a, category: 'gold' } : a);
   const includedAssets = allAssets.filter(a => !a.excluded);
   const total = includedAssets.reduce((s, a) => s + (a.value || 0), 0);
@@ -331,9 +331,9 @@ function renderHome() {
     if (el) el.textContent = fmt(conv(catTotal));
   }
 
-  // Capture daily snapshot + render chart
-  captureSnapshot(allAssets);
-  renderChart();
+  // Capture daily snapshot — then render chart
+  await captureSnapshot(allAssets);
+  await renderChart();
 
 }
 
