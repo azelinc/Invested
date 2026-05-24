@@ -85,7 +85,9 @@ async function getMyrRate() {
   return _usdMyr;
 }
 
-async function fetchStockPrice(ticker) {
+async function fetchStockPrice(ticker, isKlse=false) {
+  const suffix = ticker.toUpperCase().endsWith('.KL') ? '.KL' : '';
+  const isBursa = isKlse || suffix === '.KL';
   const urls = [
     `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1d`,
     `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1d`,
@@ -97,7 +99,7 @@ async function fetchStockPrice(ticker) {
       if (!r.ok) continue;
       const d = await r.json();
       const price = d?.chart?.result?.[0]?.meta?.regularMarketPrice;
-      if (price != null) return price * _usdMyr;
+      if (price != null) return isBursa ? price : price * _usdMyr;
     } catch (e) { /* try next */ }
   }
   console.warn('All Yahoo sources failed for', ticker);
@@ -222,10 +224,11 @@ let spentExpenses = [];
 
 const CAT_COLORS = {
   fund:'#10b981', stock:'#3b82f6', crypto:'#f59e0b',
+  'stock-klse':'#84cc16',
   ut:'#8b5cf6', gold:'#06b6d4', retirement:'#f43f5e', unknown:'#64748b'
 };
 const CAT_LABELS = {
-  fund:'Fund', stock:'Stock', crypto:'Crypto',
+  fund:'Fund', stock:'Stock', 'stock-klse':'Stock KLSE', crypto:'Crypto',
   ut:'Unit Trust', gold:'Gold', retirement:'Retirement', unknown:'Unknown'
 };
 
@@ -278,6 +281,9 @@ async function seedIfEmpty(uid) {
     { name:'Gold Bars', ticker:'GOLD', category:'gold', qty:50, price:380, priceSrc:'live', value:19000 },
     { name:'KWSP EPF', ticker:'EPF', category:'retirement', qty:1, price:0, priceSrc:'fixed', value:150000 },
     { name:'PRS Fund', ticker:'PRS', category:'retirement', qty:1, price:0, priceSrc:'fixed', value:25000 },
+    { name:'Maybank', ticker:'1155.KL', category:'stock-klse', qty:500, price:0, priceSrc:'live', value:0 },
+    { name:'Public Bank', ticker:'1295.KL', category:'stock-klse', qty:1000, price:0, priceSrc:'live', value:0 },
+    { name:'CIMB', ticker:'1023.KL', category:'stock-klse', qty:800, price:0, priceSrc:'live', value:0 },
   ];
 
   for (const a of seed) {
@@ -303,7 +309,7 @@ function renderHome() {
   document.getElementById('home-last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString('en-MY', {hour:'2-digit', minute:'2-digit'});
 
   // Category totals
-  const cats = ['fund','stock','crypto','ut','gold','retirement'];
+  const cats = ['fund','stock','stock-klse','crypto','ut','gold','retirement'];
   for (const cat of cats) {
     const catTotal = allAssets.filter(a => a.category === cat).reduce((s, a) => s + (a.value || 0), 0);
     const el = document.getElementById(`home-${cat}`);
@@ -351,7 +357,7 @@ function renderAssets() {
 
   let html = '';
   for (const cat of Object.keys(byCat).sort((a,b) => {
-    const order = ['fund','stock','crypto','ut','gold','retirement','unknown'];
+    const order = ['fund','stock','stock-klse','crypto','ut','gold','retirement','unknown'];
     return order.indexOf(a) - order.indexOf(b);
   })) {
     const items = sortAssets(byCat[cat]);
@@ -422,11 +428,20 @@ document.getElementById('btn-currency').onclick = () => {
 document.getElementById('btn-refresh').onclick = async () => {
   await getMyrRate();
   const stocks = currentAssets.filter(a => a.category === 'stock' && a.ticker);
+  const klseStocks = currentAssets.filter(a => a.category === 'stock-klse' && a.ticker);
   const cryptos = currentAssets.filter(a => a.category === 'crypto' && a.ticker);
   const golds = currentAssets.filter(a => a.category === 'gold' || a.category === 'physical');
 
   for (const a of stocks) {
     const p = await fetchStockPrice(a.ticker);
+    if (p) {
+      const v = p * (a.qty || 0);
+      await updateDoc(doc(db, `users/${currentUid}/assets`, a.id), { price: p, value: v, lastPriceSync: Date.now() });
+    }
+  }
+
+  for (const a of klseStocks) {
+    const p = await fetchStockPrice(a.ticker, true);
     if (p) {
       const v = p * (a.qty || 0);
       await updateDoc(doc(db, `users/${currentUid}/assets`, a.id), { price: p, value: v, lastPriceSync: Date.now() });
@@ -602,9 +617,10 @@ document.getElementById('btn-add').onclick = () => {
     if (!name) { alert('Name is required'); return; }
 
     let price = 0, value = 0, priceSrc = 'fixed';
-    if (cat === 'stock' || cat === 'crypto' || cat === 'gold') {
+    if (cat === 'stock' || cat === 'stock-klse' || cat === 'crypto' || cat === 'gold') {
       priceSrc = 'live';
       if (cat === 'stock' && ticker) price = await fetchStockPrice(ticker);
+      if (cat === 'stock-klse' && ticker) price = await fetchStockPrice(ticker, true);
       if (cat === 'crypto' && ticker) {
         const id = CRYPTO_MAP[ticker.toUpperCase()];
         if (id) {
@@ -650,9 +666,10 @@ async function editAsset(id) {
     if (!name) return;
 
     let price = a.price, value = a.value, priceSrc = a.priceSrc;
-    if (cat === 'stock' || cat === 'crypto' || cat === 'gold') {
+    if (cat === 'stock' || cat === 'stock-klse' || cat === 'crypto' || cat === 'gold') {
       priceSrc = 'live';
       if (cat === 'stock' && ticker) price = await fetchStockPrice(ticker);
+      if (cat === 'stock-klse' && ticker) price = await fetchStockPrice(ticker, true);
       if (cat === 'crypto' && ticker) {
         const id = CRYPTO_MAP[ticker.toUpperCase()];
         if (id) {
