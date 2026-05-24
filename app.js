@@ -318,6 +318,39 @@ function renderHome() {
 
 }
 
+/* ═══════════════════ SHARE ═══════════════════ */
+async function sharePortfolio() {
+  if (!currentAssets.length) {
+    alert("No assets to share.");
+    return;
+  }
+  const allAssets = currentAssets.map(a => a.category === 'physical' ? { ...a, category: 'gold' } : a);
+  const total = allAssets.reduce((s, a) => s + (a.value || 0), 0);
+  const now = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  let text = `Invested Portfolio — ${now}\nNet Worth: ${fmt(conv(total))} (${(currency || 'myr').toUpperCase()})\n`;
+  text += `${allAssets.length} Assets\n\n`;
+
+  const cats = ['fund','stock','stock-klse','crypto','ut','gold','retirement'];
+  for (const cat of cats) {
+    const items = allAssets.filter(a => a.category === cat).sort((a, b) => (b.value || 0) - (a.value || 0));
+    if (!items.length) continue;
+    const catTotal = items.reduce((s, a) => s + (a.value || 0), 0);
+    text += `📊 ${CAT_LABELS[cat] || cat}\n`;
+    for (const a of items) {
+      text += `  • ${a.name}: ${fmt(conv(a.value || 0))}${a.qty ? ` (${fmtQty(a.qty)} ${a.category === 'gold' ? 'g' : 'units'} @ ${fmt(conv(a.price || 0))})` : ''}\n`;
+    }
+    text += `  Subtotal: ${fmt(conv(catTotal))} (${((catTotal/total)*100).toFixed(1)}%)\n\n`;
+  }
+
+  try {
+    await navigator.clipboard.writeText(text);
+    alert("Portfolio copied to clipboard! Paste it here.");
+  } catch (e) {
+    prompt("Copy this summary:", text);
+  }
+}
+
 /* ═══════════════════ ASSET RENDER ═══════════════════ */
 function renderAssets() {
   const grid = document.getElementById('assets-grid');
