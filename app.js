@@ -386,22 +386,24 @@ async function renderChart() {
       labels,
       datasets: [
         {
-          label: 'Total (incl. illiquid)',
-          data: totalData,
-          borderColor: '#3b82f6',
-          backgroundColor: 'rgba(59,130,246,0.1)',
-          tension: 0.3,
-          pointRadius: 3,
-          pointBackgroundColor: '#3b82f6',
-        },
-        {
-          label: 'Liquid',
+          label: 'Net Worth',
           data: liquidData,
           borderColor: '#10b981',
           backgroundColor: 'rgba(16,185,129,0.1)',
           tension: 0.3,
           pointRadius: 3,
           pointBackgroundColor: '#10b981',
+          yAxisID: 'y',
+        },
+        {
+          label: 'Net Worth (All)',
+          data: totalData,
+          borderColor: '#3b82f6',
+          backgroundColor: 'rgba(59,130,246,0.1)',
+          tension: 0.3,
+          pointRadius: 3,
+          pointBackgroundColor: '#3b82f6',
+          yAxisID: 'y1',
         }
       ]
     },
@@ -425,12 +427,22 @@ async function renderChart() {
           grid: { color:'rgba(255,255,255,0.05)' }
         },
         y: {
+          position: 'left',
           ticks: {
-            color:'#64748b',
+            color:'#10b981',
             font: { size: 9 },
             callback: v => v >= 1000 ? (v/1000).toFixed(0)+'k' : v
           },
           grid: { color:'rgba(255,255,255,0.05)' }
+        },
+        y1: {
+          position: 'right',
+          ticks: {
+            color:'#3b82f6',
+            font: { size: 9 },
+            callback: v => v >= 1000 ? (v/1000).toFixed(0)+'k' : v
+          },
+          grid: { display: false }
         }
       }
     }
