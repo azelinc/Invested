@@ -48,7 +48,13 @@ button.text-btn {
 }
 .brand { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.4px; }
 .user-meta { text-align: right; }
-.user-meta small { display: block; color: var(--muted); font-size: .68rem; margin-bottom: .1rem; }
+.user-meta small { display: block; color: var(--muted); font-size: .68rem; margin-top: .15rem; }
+.user-meta-row {
+  display: flex;
+  gap: .4rem;
+  justify-content: flex-end;
+  align-items: center;
+}
 .topbar .text-btn {
   background: rgba(255,255,255,.08);
   border: 1px solid #334155;
