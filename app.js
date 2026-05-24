@@ -279,8 +279,8 @@ async function seedIfEmpty(uid) {
     { name:'Solana', ticker:'SOL', category:'crypto', qty:45, price:0, priceSrc:'live', value:0 },
     { name:'Public Mutual', ticker:'PMUT', category:'ut', qty:5000, price:1, priceSrc:'fixed', value:5000 },
     { name:'Gold Bars', ticker:'GOLD', category:'gold', qty:50, price:380, priceSrc:'live', value:19000 },
-    { name:'KWSP EPF', ticker:'EPF', category:'retirement', qty:1, price:0, priceSrc:'fixed', value:150000 },
-    { name:'PRS Fund', ticker:'PRS', category:'retirement', qty:1, price:0, priceSrc:'fixed', value:25000 },
+    { name:'KWSP EPF', ticker:'EPF', category:'retirement', qty:1, price:0, priceSrc:'fixed', value:150000, excluded:true },
+    { name:'PRS Fund', ticker:'PRS', category:'retirement', qty:1, price:0, priceSrc:'fixed', value:25000, excluded:true },
     { name:'Maybank', ticker:'1155.KL', category:'stock-klse', qty:500, price:0, priceSrc:'live', value:0 },
     { name:'Public Bank', ticker:'1295.KL', category:'stock-klse', qty:1000, price:0, priceSrc:'live', value:0 },
     { name:'CIMB', ticker:'1023.KL', category:'stock-klse', qty:800, price:0, priceSrc:'live', value:0 },
@@ -302,11 +302,24 @@ function sortAssets(items) {
 /* ═══════════════════ HOME RENDER ═══════════════════ */
 function renderHome() {
   const allAssets = currentAssets.map(a => a.category === 'physical' ? { ...a, category: 'gold' } : a);
-  const total = allAssets.reduce((s, a) => s + (a.value || 0), 0);
+  const includedAssets = allAssets.filter(a => !a.excluded);
+  const total = includedAssets.reduce((s, a) => s + (a.value || 0), 0);
+  const excludedTotal = allAssets.filter(a => a.excluded).reduce((s, a) => s + (a.value || 0), 0);
 
   document.getElementById('home-net-worth').textContent = fmt(conv(total));
   document.getElementById('home-asset-count').textContent = `${currentAssets.length} assets`;
   document.getElementById('home-last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString('en-MY', {hour:'2-digit', minute:'2-digit'});
+
+  // Show excluded amount if any
+  let excludedEl = document.getElementById('home-excluded');
+  if (!excludedEl) {
+    const heroDiv = document.getElementById('home-net-worth').parentElement;
+    excludedEl = document.createElement('div');
+    excludedEl.id = 'home-excluded';
+    excludedEl.style.cssText = 'font-size:.7rem;color:var(--muted);margin-top:.15rem;';
+    heroDiv.appendChild(excludedEl);
+  }
+  excludedEl.textContent = excludedTotal ? `+ ${fmt(conv(excludedTotal))} excluded (illiquid)` : '';
 
   // Category totals
   const cats = ['fund','stock','stock-klse','crypto','ut','gold','retirement'];
@@ -325,10 +338,14 @@ async function sharePortfolio() {
     return;
   }
   const allAssets = currentAssets.map(a => a.category === 'physical' ? { ...a, category: 'gold' } : a);
-  const total = allAssets.reduce((s, a) => s + (a.value || 0), 0);
+  const includedAssets = allAssets.filter(a => !a.excluded);
+  const total = includedAssets.reduce((s, a) => s + (a.value || 0), 0);
   const now = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
+  const excludedTotal = allAssets.filter(a => a.excluded).reduce((s, a) => s + (a.value || 0), 0);
+
   let text = `Invested Portfolio — ${now}\nNet Worth: ${fmt(conv(total))} (${(currency || 'myr').toUpperCase()})\n`;
+  if (excludedTotal) text += `Excluded (illiquid): ${fmt(conv(excludedTotal))}\n`;
   text += `${allAssets.length} Assets\n\n`;
 
   const cats = ['fund','stock','stock-klse','crypto','ut','gold','retirement'];
@@ -356,7 +373,8 @@ function renderAssets() {
   const grid = document.getElementById('assets-grid');
   const allAssets = currentAssets.map(a => a.category === 'physical' ? { ...a, category: 'gold' } : a);
   const assets = currentFilter === 'all' ? allAssets : allAssets.filter(a => a.category === currentFilter);
-  const total = allAssets.reduce((s, a) => s + (a.value || 0), 0);
+  const includedAssets = allAssets.filter(a => !a.excluded);
+  const total = includedAssets.reduce((s, a) => s + (a.value || 0), 0);
 
   // Populate summary row
   const nwEl = document.getElementById('asset-net-worth');
@@ -407,11 +425,11 @@ function renderAssets() {
       const priceLabel = a.price ? `${fmt(conv(a.price))} / ${unitLabel}` : '';
       const priceTag = a.priceSrc === 'live' ? `<span class="price-tag">${priceLabel}</span>` : '';
       html += `
-        <div class="asset-card" data-id="${a.id}">
+        <div class="asset-card${a.excluded ? ' excluded' : ''}" data-id="${a.id}">
           <div class="asset-left">
             <div class="asset-dot" style="background:${CAT_COLORS[a.category]||'#64748b'}"></div>
             <div class="asset-info">
-              <div class="asset-name">${a.name}</div>
+              <div class="asset-name">${a.name}${a.excluded ? '<span class="excluded-badge">(Excluded)</span>' : ''}</div>
               <div class="asset-meta">
                 ${a.ticker ? `<span class="ticker">${a.ticker}</span>` : ''}
                 ${priceTag}
@@ -614,11 +632,17 @@ function buildAssetForm(asset, isEdit) {
       <label>Value (RM)</label>
       <input type="number" id="m-value" value="${asset?.value ?? ''}" placeholder="Total value in RM">
     </div>`;
+  const excludedCheck = `
+    <div class="field" style="display:flex;align-items:center;gap:.5rem;margin-top:.3rem">
+      <input type="checkbox" id="m-excluded" ${asset?.excluded ? 'checked' : ''}>
+      <label for="m-excluded" style="margin:0;font-size:.82rem;color:var(--muted)">Exclude from net-worth calculation (e.g. illiquid)</label>
+    </div>`;
 
   return `
     <form id="asset-form" onsubmit="return false">
       ${common}
       ${manualField}
+      ${excludedCheck}
       <div class="field" id="m-price-wrap" style="display:${isManual ? 'none' : 'block'}">
         <label>Price per gram (RM) – auto-fetched for Gold, optional manual for Stock/Crypto</label>
         <input type="number" id="m-price" value="${asset?.price ?? ''}" placeholder="Auto-fetched for Gold; optional fallback for Stock/Crypto">
@@ -677,7 +701,7 @@ document.getElementById('btn-add').onclick = () => {
     }
 
     await addDoc(collection(db, `users/${currentUid}/assets`), {
-      name, ticker, category: cat, qty, price, value, priceSrc,
+      name, ticker, category: cat, qty, price, value, priceSrc, excluded: !!document.getElementById('m-excluded').checked,
       createdAt: serverTimestamp()
     });
     closeModal();
@@ -726,7 +750,7 @@ async function editAsset(id) {
     }
 
     await updateDoc(doc(db, `users/${currentUid}/assets`, id), {
-      name, ticker, category: cat, qty, price, value, priceSrc,
+      name, ticker, category: cat, qty, price, value, priceSrc, excluded: !!document.getElementById('m-excluded').checked,
       updatedAt: serverTimestamp()
     });
     closeModal();

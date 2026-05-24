@@ -458,6 +458,17 @@ button.text-btn {
 .link { color: var(--accent); text-decoration: none; }
 .hint { font-size: .8rem; }
 
+/* ── Excluded assets ── */
+.asset-card.excluded {
+  opacity: .45;
+  filter: grayscale(0.85);
+}
+.asset-card .excluded-badge {
+  font-size: .62rem;
+  color: #f43f5e;
+  margin-left: .35rem;
+}
+
 /* ── Desktop: single column, tighter padding ── */
 @media (min-width: 769px) {
   .cat-list {
