@@ -319,7 +319,8 @@ function renderHome() {
     excludedEl.style.cssText = 'font-size:.7rem;color:var(--muted);margin-top:.15rem;';
     heroDiv.appendChild(excludedEl);
   }
-  excludedEl.textContent = excludedTotal ? `+ ${fmt(conv(excludedTotal))} excluded (illiquid)` : '';
+  const grandTotal = total + excludedTotal;
+  excludedEl.textContent = excludedTotal ? `${fmt(conv(grandTotal))} total (incl. illiquid)` : '';
 
   // Category totals
   const cats = ['fund','stock','stock-klse','crypto','ut','gold','retirement'];
