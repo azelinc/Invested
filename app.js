@@ -6,7 +6,7 @@ import {
 import {
   getFirestore, collection, doc,
   onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, query, getDocs,
-  getDoc, setDoc, orderBy
+  getDoc, setDoc, orderBy, limit
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 import {
   getDatabase, ref as dbRef, onValue
