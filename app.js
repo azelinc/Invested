@@ -5,7 +5,8 @@ import {
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
 import {
   getFirestore, collection, doc,
-  onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, query, getDocs
+  onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, query, getDocs,
+  getDoc, setDoc, orderBy
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 import {
   getDatabase, ref as dbRef, onValue
@@ -330,6 +331,110 @@ function renderHome() {
     if (el) el.textContent = fmt(conv(catTotal));
   }
 
+  // Capture daily snapshot + render chart
+  captureSnapshot(allAssets);
+  renderChart();
+
+}
+
+/* ═══════════════ DAILY SNAPSHOT ═══════════════ */
+async function captureSnapshot(allAssets) {
+  if (!currentUid) return;
+  const today = new Date().toISOString().slice(0,10); // YYYY-MM-DD
+  try {
+    const snapRef = doc(db, `users/${currentUid}/snapshots`, today);
+    const existing = await getDoc(snapRef);
+    if (existing.exists()) return; // already captured today
+    const total = allAssets.reduce((s,a) => s + (a.value||0), 0);
+    const liquid = allAssets.filter(a => !a.excluded).reduce((s,a) => s + (a.value||0), 0);
+    const excluded = allAssets.filter(a => a.excluded).reduce((s,a) => s + (a.value||0), 0);
+    await setDoc(snapRef, { date: today, total, liquid, excluded, timestamp: Date.now() });
+  } catch(e) { console.warn('Snapshot skipped', e); }
+}
+
+/* ═══════════════ NET WORTH CHART ═══════════════ */
+let chartInstance = null;
+
+async function renderChart() {
+  const canvas = document.getElementById('networth-chart');
+  if (!canvas) return;
+
+  // Query last 30 snapshots
+  let snapshots = [];
+  try {
+    const q = query(collection(db, `users/${currentUid}/snapshots`), orderBy('date','desc'), limit(30));
+    const snap = await getDocs(q);
+    snapshots = snap.docs.map(d => d.data()).reverse(); // oldest first
+  } catch(e) { console.warn('Chart query failed', e); return; }
+
+  if (snapshots.length < 1) return;
+
+  const labels = snapshots.map(s => {
+    const d = new Date(s.date + 'T00:00:00');
+    return d.toLocaleDateString('en-MY', {day:'numeric', month:'short'});
+  });
+  const totalData = snapshots.map(s => conv(s.total || 0));
+  const liquidData = snapshots.map(s => conv(s.liquid || 0));
+
+  const ctx = canvas.getContext('2d');
+
+  if (chartInstance) chartInstance.destroy();
+
+  chartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Total (incl. illiquid)',
+          data: totalData,
+          borderColor: '#3b82f6',
+          backgroundColor: 'rgba(59,130,246,0.1)',
+          tension: 0.3,
+          pointRadius: 3,
+          pointBackgroundColor: '#3b82f6',
+        },
+        {
+          label: 'Liquid',
+          data: liquidData,
+          borderColor: '#10b981',
+          backgroundColor: 'rgba(16,185,129,0.1)',
+          tension: 0.3,
+          pointRadius: 3,
+          pointBackgroundColor: '#10b981',
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode:'index', intersect:false },
+      plugins: {
+        legend: {
+          labels: { color:'#94a3b8', font: { size:11 }, boxWidth: 12, padding: 12 }
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => `${ctx.dataset.label}: ${fmt(ctx.raw)}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color:'#64748b', font: { size:9 }, maxTicksLimit: 8 },
+          grid: { color:'rgba(255,255,255,0.05)' }
+        },
+        y: {
+          ticks: {
+            color:'#64748b',
+            font: { size: 9 },
+            callback: v => v >= 1000 ? (v/1000).toFixed(0)+'k' : v
+          },
+          grid: { color:'rgba(255,255,255,0.05)' }
+        }
+      }
+    }
+  });
 }
 
 /* ═══════════════════ SHARE ═══════════════════ */
