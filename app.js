@@ -457,6 +457,10 @@ document.getElementById('btn-currency').onclick = () => {
   if (currentTab === 'spent') renderSpent();
 };
 
+/* ── Share listeners ── */
+document.getElementById('btn-share-home').onclick = sharePortfolio;
+document.getElementById('btn-share-asset').onclick = sharePortfolio;
+
 /* ── Refresh prices ── */
 document.getElementById('btn-refresh').onclick = async () => {
   await getMyrRate();
