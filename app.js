@@ -62,7 +62,8 @@ const CRYPTO_MAP = {
   CRV:'curve-dao-token', COMP:'compound-governance-token', YFI:'yearn-finance',
   SNX:'havven', '1INCH':'1inch', ZRX:'0x', BAL:'balancer',
   KNC:'kyber-network-crystal', GNO:'gnosis', LRC:'loopring',
-  POL:'polygon-ecosystem-token'
+  POL:'polygon-ecosystem-token',
+  CAKE:'pancakeswap-token'
 };
 
 async function getMyrRate() {
