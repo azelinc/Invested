@@ -1,244 +1,243 @@
-     1|<!DOCTYPE html>
-     2|<html lang="en">
-     3|<head>
-     4|  <meta charset="UTF-8">
-     5|  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-     6|  <title>Invested — Net Worth Tracker</title>
-     7|  <link rel="stylesheet" href="style.css?v=26">
-     8|  <link rel="manifest" href="manifest.json">
-     9|  <meta name="theme-color" content="#0f172a">
-    10|</head>
-    11|<body>
-    12|
-    13|  <!-- ============ AUTH SCREEN ============ -->
-    14|  <div id="auth-section" style="max-width:420px;margin:5rem auto;padding:1.5rem;">
-    15|    <div class="brand center" style="font-size:2rem;margin-bottom:0.25rem">💰 Invested <small style="font-size:.7rem;color:var(--muted);font-weight:400">v27</small></div>
-    16|    <div class="subtitle center" style="margin-bottom:1.5rem;color:var(--muted)">Net Worth Tracker</div>
-    17|
-    18|    <div id="login-panel">
-    19|      <h4 class="center" style="margin-bottom:0.75rem">Sign In</h4>
-    20|      <div class="field">
-    21|        <label>Email</label>
-    22|        <input type="email" id="email" placeholder="you@email.com" autocomplete="email">
-    23|      </div>
-    24|      <div class="field">
-    25|        <label>Password</label>
-    26|        <input type="password" id="password" placeholder="Password" autocomplete="current-password">
-    27|      </div>
-    28|      <button class="btn-primary full" id="btn-login" style="margin-top:0.5rem">Login</button>
-    29|      <p class="center" style="margin-top:0.75rem;color:var(--muted);font-size:0.75rem">No account? <a href="#" id="link-register" class="link">Register</a></p>
-    30|      <div id="auth-error" class="hint center" style="color:var(--danger);margin-top:0.5rem;min-height:1.2em"></div>
-    31|    </div>
-    32|
-    33|    <div id="register-panel" style="display:none">
-    34|      <h4 class="center" style="margin-bottom:0.75rem">Create Account</h4>
-    35|      <div class="field">
-    36|        <label>Email</label>
-    37|        <input type="email" id="reg-email" placeholder="you@email.com" autocomplete="email">
-    38|      </div>
-    39|      <div class="field">
-    40|        <label>Password</label>
-    41|        <input type="password" id="reg-password" placeholder="6+ characters" autocomplete="new-password">
-    42|      </div>
-    43|      <div class="field">
-    44|        <label>Confirm Password</label>
-    45|        <input type="password" id="reg-password2" placeholder="Repeat password" autocomplete="new-password">
-    46|      </div>
-    47|      <button class="btn-primary full" id="btn-register" style="margin-top:0.5rem">Create Account</button>
-    48|      <p class="center" style="margin-top:0.75rem;color:var(--muted);font-size:0.75rem">Already have one? <a href="#" id="link-login" class="link">Sign In</a></p>
-    49|      <div id="reg-error" class="hint center" style="color:var(--danger);margin-top:0.5rem;min-height:1.2em"></div>
-    50|    </div>
-    51|  </div>
-    52|
-    53|  <!-- ============ MAIN APP ============ -->
-    54|  <div id="app-section" style="display:none;">
-    55|    <header class="topbar">
-    56|      <div class="brand">💰 Invested <small style="font-size:.55rem;color:var(--muted);font-weight:400">v27</small></div>
-    57|      <div class="user-meta">
-    58|        <div class="user-meta-row">
-    59|          <a class="text-btn" href="https://azelinc.github.io/Done/" target="_blank">Done</a>
-    60|          <button id="btn-logout" class="text-btn">Logout</button>
-    61|        </div>
-    62|        <small id="user-email"></small>
-    63|      </div>
-    64|    </header>
-    65|
-    66|    <!-- Top-level tabs -->
-    67|    <nav class="main-tabs" id="main-tabs">
-    68|      <button class="main-tab active" data-tab="home">Home</button>
-    69|      <button class="main-tab" data-tab="asset">Asset</button>
-    70|      <button class="main-tab" data-tab="spent">Spent</button>
-    71|    </nav>
-    72|
-    73|    <!-- ===== HOME TAB ===== -->
-    74|    <main id="tab-home" class="tab-pane active">
-    75|      <section class="summary-row card">
-    76|        <div>
-    77|          <div class="hero-label">Net Worth</div>
-    78|          <div class="hero-amount" id="home-net-worth">RM 0</div>
-    79|        </div>
-    80|        <div style="text-align:right">
-    81|          <button id="btn-refresh" class="refresh-btn" title="Refresh prices">⟳ Refresh</button>
-    82|          <button id="btn-share-home" class="refresh-btn" title="Copy summary">📋 Share</button>
-    83|          <div class="hero-meta" style="margin-top:0.4rem">
-    84|            <span class="pill" id="home-asset-count">0 assets</span>
-    85|            <span class="pill" id="home-last-updated">Updated today</span>
-    86|          </div>
-    87|        </div>
-    88|      </section>
-    89|
-    90|      <!-- Category summary cards -->
-    91|      <div class="home-grid" id="home-categories">
-    92|        <div class="home-card" data-cat="fund">
-    93|          <div class="home-card-dot" style="background:#10b981"></div>
-    94|          <div class="home-card-info">
-    95|            <div class="home-card-label">Fund</div>
-    96|            <div class="home-card-value" id="home-fund">RM 0</div>
-    97|          </div>
-    98|        </div>
-    99|        <div class="home-card" data-cat="stock">
-   100|          <div class="home-card-dot" style="background:#3b82f6"></div>
-   101|          <div class="home-card-info">
-   102|            <div class="home-card-label">Stock</div>
-   103|            <div class="home-card-value" id="home-stock">RM 0</div>
-   104|          </div>
-   105|        </div>
-   106|        <div class="home-card" data-cat="crypto">
-   107|          <div class="home-card-dot" style="background:#f59e0b"></div>
-   108|          <div class="home-card-info">
-   109|            <div class="home-card-label">Crypto</div>
-   110|            <div class="home-card-value" id="home-crypto">RM 0</div>
-   111|          </div>
-   112|        </div>
-   113|        <div class="home-card" data-cat="ut">
-   114|          <div class="home-card-dot" style="background:#8b5cf6"></div>
-   115|          <div class="home-card-info">
-   116|            <div class="home-card-label">Unit Trust</div>
-   117|            <div class="home-card-value" id="home-ut">RM 0</div>
-   118|          </div>
-   119|        </div>
-   120|        <div class="home-card" data-cat="gold">
-   121|          <div class="home-card-dot" style="background:#06b6d4"></div>
-   122|          <div class="home-card-info">
-   123|            <div class="home-card-label">Gold</div>
-   124|            <div class="home-card-value" id="home-gold">RM 0</div>
-   125|          </div>
-   126|        </div>
-   127|        <div class="home-card" data-cat="retirement">
-   128|          <div class="home-card-dot" style="background:#f43f5e"></div>
-   129|          <div class="home-card-info">
-   130|            <div class="home-card-label">Retirement</div>
-   131|            <div class="home-card-value" id="home-retirement">RM 0</div>
-   132|          </div>
-   133|        </div>
-   134|        <div class="home-card" data-cat="stock-klse">
-   135|          <div class="home-card-dot" style="background:#84cc16"></div>
-   136|          <div class="home-card-info">
-   137|            <div class="home-card-label">Stock KLSE</div>
-   138|            <div class="home-card-value" id="home-stock-klse">RM 0</div>
-   139|          </div>
-   140|        </div>
-   141|      </div>
-   142|
-   143|      <!-- Net Worth Chart -->
-   144|      <section class="chart-card" style="margin-top:.8rem">
-   145|        <div class="chart-header">Net Worth Trend (30D)</div>
-   146|        <div class="chart-canvas-wrapper">
-   147|          <canvas id="networth-chart"></canvas>
-   148|        </div>
-   149|      </section>
-   150|    </main>
-   151|
-   152|    <!-- ===== ASSET TAB ===== -->
-   153|    <main id="tab-asset" class="tab-pane">
-   154|      <!-- Summary Row -->
-   155|      <section class="summary-row card">
-   156|        <div>
-   157|          <div class="hero-label">Net Worth</div>
-   158|          <div class="hero-amount" id="asset-net-worth">RM 0</div>
-   159|        </div>
-   160|        <div style="text-align:right">
-   161|          <button id="btn-refresh" class="refresh-btn" title="Refresh prices">⟳ Refresh</button>
-   162|          <button id="btn-share-asset" class="refresh-btn" title="Copy summary">📋 Share</button>
-   163|          <div class="hero-meta" style="margin-top:0.4rem">
-   164|            <span class="pill" id="asset-asset-count">0 assets</span>
-   165|            <span class="pill" id="asset-last-updated">Updated today</span>
-   166|          </div>
-   167|        </div>
-   168|      </section>
-   169|
-   170|      <!-- Controls: Tabs + Sort + Currency -->
-   171|      <div class="controls-row">
-   172|        <div class="tabs" id="category-tabs">
-   173|          <button class="tab active" data-filter="all">All</button>
-   174|          <button class="tab" data-filter="fund">Fund</button>
-   175|          <button class="tab" data-filter="stock">Stock</button>
-   176|          <button class="tab" data-filter="crypto">Crypto</button>
-   177|          <button class="tab" data-filter="ut">Unit Trust</button>
-   178|          <button class="tab" data-filter="gold">Gold</button>
-   179|          <button class="tab" data-filter="retirement">Retirement</button>
-   180|          <button class="tab" data-filter="stock-klse">Stock KLSE</button>
-   181|        </div>
-   182|        <div style="display:flex;gap:.4rem;align-items:center;flex-shrink:0">
-   183|          <button class="sort-btn" id="btn-sort" title="Sort">↕ Value</button>
-   184|          <button class="currency-btn active" id="btn-currency" title="Toggle currency">MYR</button>
-   185|        </div>
-   186|      </div>
-   187|
-   188|      <!-- Unified Assets Grid -->
-   189|      <div class="assets-grid" id="assets-grid"></div>
-   190|
-   191|      <!-- Add Button -->
-   192|      <section class="actions">
-   193|        <button id="btn-add" class="btn-primary">+ Add Asset</button>
-   194|      </section>
-   195|    </main>
-   196|
-   197|    <!-- ===== SPENT TAB ===== -->
-   198|    <main id="tab-spent" class="tab-pane">
-   199|      <section class="summary-row card">
-   200|        <div>
-   201|          <div class="hero-label">This Month</div>
-   202|          <div class="hero-amount" id="spent-month">RM 0</div>
-   203|        </div>
-   204|        <div style="text-align:right">
-   205|          <div class="hero-meta" style="margin-top:0.4rem">
-   206|            <span class="pill" id="spent-count">0 transactions</span>
-   207|          </div>
-   208|        </div>
-   209|      </section>
-   210|
-   211|      <section class="card" style="margin-top:1rem;">
-   212|        <div class="section-title">By Category</div>
-   213|        <div id="spent-cat-list"></div>
-   214|      </section>
-   215|
-   216|      <section class="card" style="margin-top:1rem;">
-   217|        <div class="section-title">Recent</div>
-   218|        <div id="spent-recent-list"></div>
-   219|      </section>
-   220|    </main>
-   221|  </div>
-   222|
-   223|  <!-- ============ MODAL ============ -->
-   224|  <div id="modal-overlay" class="modal-overlay" style="display:none">
-   225|    <div class="modal">
-   226|      <div class="modal-header">
-   227|        <h3 id="modal-title">Add Asset</h3>
-   228|        <button id="modal-close" class="modal-close">×</button>
-   229|      </div>
-   230|      <div class="modal-body" id="modal-body"></div>
-   231|      <div class="modal-footer" id="modal-footer"></div>
-   232|    </div>
-   233|  </div>
-   234|
-   235|  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
-   236|  <script type="module" src="app.js?v=26"></script>
-   237|  <script>
-   238|    if ('serviceWorker' in navigator) {
-   239|      navigator.serviceWorker.register('sw.js?v=26').catch(console.error);
-   240|    }
-   241|  </script>
-   242|</body>
-   243|</html>
-   244|
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Invested — Net Worth Tracker</title>
+  <link rel="stylesheet" href="style.css?v=27">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f172a">
+</head>
+<body>
+
+  <!-- ============ AUTH SCREEN ============ -->
+  <div id="auth-section" style="max-width:420px;margin:5rem auto;padding:1.5rem;">
+    <div class="brand center" style="font-size:2rem;margin-bottom:0.25rem">💰 Invested <small style="font-size:.7rem;color:var(--muted);font-weight:400">v27</small></div>
+    <div class="subtitle center" style="margin-bottom:1.5rem;color:var(--muted)">Net Worth Tracker</div>
+
+    <div id="login-panel">
+      <h4 class="center" style="margin-bottom:0.75rem">Sign In</h4>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="email" placeholder="you@email.com" autocomplete="email">
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="password" placeholder="Password" autocomplete="current-password">
+      </div>
+      <button class="btn-primary full" id="btn-login" style="margin-top:0.5rem">Login</button>
+      <p class="center" style="margin-top:0.75rem;color:var(--muted);font-size:0.75rem">No account? <a href="#" id="link-register" class="link">Register</a></p>
+      <div id="auth-error" class="hint center" style="color:var(--danger);margin-top:0.5rem;min-height:1.2em"></div>
+    </div>
+
+    <div id="register-panel" style="display:none">
+      <h4 class="center" style="margin-bottom:0.75rem">Create Account</h4>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="reg-email" placeholder="you@email.com" autocomplete="email">
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="reg-password" placeholder="6+ characters" autocomplete="new-password">
+      </div>
+      <div class="field">
+        <label>Confirm Password</label>
+        <input type="password" id="reg-password2" placeholder="Repeat password" autocomplete="new-password">
+      </div>
+      <button class="btn-primary full" id="btn-register" style="margin-top:0.5rem">Create Account</button>
+      <p class="center" style="margin-top:0.75rem;color:var(--muted);font-size:0.75rem">Already have one? <a href="#" id="link-login" class="link">Sign In</a></p>
+      <div id="reg-error" class="hint center" style="color:var(--danger);margin-top:0.5rem;min-height:1.2em"></div>
+    </div>
+  </div>
+
+  <!-- ============ MAIN APP ============ -->
+  <div id="app-section" style="display:none;">
+    <header class="topbar">
+      <div class="brand">💰 Invested <small style="font-size:.55rem;color:var(--muted);font-weight:400">v27</small></div>
+      <div class="user-meta">
+        <div class="user-meta-row">
+          <a class="text-btn" href="https://azelinc.github.io/Done/" target="_blank">Done</a>
+          <button id="btn-logout" class="text-btn">Logout</button>
+        </div>
+        <small id="user-email"></small>
+      </div>
+    </header>
+
+    <!-- Top-level tabs -->
+    <nav class="main-tabs" id="main-tabs">
+      <button class="main-tab active" data-tab="home">Home</button>
+      <button class="main-tab" data-tab="asset">Asset</button>
+      <button class="main-tab" data-tab="spent">Spent</button>
+    </nav>
+
+    <!-- ===== HOME TAB ===== -->
+    <main id="tab-home" class="tab-pane active">
+      <section class="summary-row card">
+        <div>
+          <div class="hero-label">Net Worth</div>
+          <div class="hero-amount" id="home-net-worth">RM 0</div>
+        </div>
+        <div style="text-align:right">
+          <button id="btn-refresh" class="refresh-btn" title="Refresh prices">⟳ Refresh</button>
+          <button id="btn-share-home" class="refresh-btn" title="Copy summary">📋 Share</button>
+          <div class="hero-meta" style="margin-top:0.4rem">
+            <span class="pill" id="home-asset-count">0 assets</span>
+            <span class="pill" id="home-last-updated">Updated today</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Category summary cards -->
+      <div class="home-grid" id="home-categories">
+        <div class="home-card" data-cat="fund">
+          <div class="home-card-dot" style="background:#10b981"></div>
+          <div class="home-card-info">
+            <div class="home-card-label">Fund</div>
+            <div class="home-card-value" id="home-fund">RM 0</div>
+          </div>
+        </div>
+        <div class="home-card" data-cat="stock">
+          <div class="home-card-dot" style="background:#3b82f6"></div>
+          <div class="home-card-info">
+            <div class="home-card-label">Stock</div>
+            <div class="home-card-value" id="home-stock">RM 0</div>
+          </div>
+        </div>
+        <div class="home-card" data-cat="crypto">
+          <div class="home-card-dot" style="background:#f59e0b"></div>
+          <div class="home-card-info">
+            <div class="home-card-label">Crypto</div>
+            <div class="home-card-value" id="home-crypto">RM 0</div>
+          </div>
+        </div>
+        <div class="home-card" data-cat="ut">
+          <div class="home-card-dot" style="background:#8b5cf6"></div>
+          <div class="home-card-info">
+            <div class="home-card-label">Unit Trust</div>
+            <div class="home-card-value" id="home-ut">RM 0</div>
+          </div>
+        </div>
+        <div class="home-card" data-cat="gold">
+          <div class="home-card-dot" style="background:#06b6d4"></div>
+          <div class="home-card-info">
+            <div class="home-card-label">Gold</div>
+            <div class="home-card-value" id="home-gold">RM 0</div>
+          </div>
+        </div>
+        <div class="home-card" data-cat="retirement">
+          <div class="home-card-dot" style="background:#f43f5e"></div>
+          <div class="home-card-info">
+            <div class="home-card-label">Retirement</div>
+            <div class="home-card-value" id="home-retirement">RM 0</div>
+          </div>
+        </div>
+        <div class="home-card" data-cat="stock-klse">
+          <div class="home-card-dot" style="background:#84cc16"></div>
+          <div class="home-card-info">
+            <div class="home-card-label">Stock KLSE</div>
+            <div class="home-card-value" id="home-stock-klse">RM 0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Net Worth Chart -->
+      <section class="chart-card" style="margin-top:.8rem">
+        <div class="chart-header">Net Worth Trend (30D)</div>
+        <div class="chart-canvas-wrapper">
+          <canvas id="networth-chart"></canvas>
+        </div>
+      </section>
+    </main>
+
+    <!-- ===== ASSET TAB ===== -->
+    <main id="tab-asset" class="tab-pane">
+      <!-- Summary Row -->
+      <section class="summary-row card">
+        <div>
+          <div class="hero-label">Net Worth</div>
+          <div class="hero-amount" id="asset-net-worth">RM 0</div>
+        </div>
+        <div style="text-align:right">
+          <button id="btn-refresh" class="refresh-btn" title="Refresh prices">⟳ Refresh</button>
+          <button id="btn-share-asset" class="refresh-btn" title="Copy summary">📋 Share</button>
+          <div class="hero-meta" style="margin-top:0.4rem">
+            <span class="pill" id="asset-asset-count">0 assets</span>
+            <span class="pill" id="asset-last-updated">Updated today</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Controls: Tabs + Sort + Currency -->
+      <div class="controls-row">
+        <div class="tabs" id="category-tabs">
+          <button class="tab active" data-filter="all">All</button>
+          <button class="tab" data-filter="fund">Fund</button>
+          <button class="tab" data-filter="stock">Stock</button>
+          <button class="tab" data-filter="crypto">Crypto</button>
+          <button class="tab" data-filter="ut">Unit Trust</button>
+          <button class="tab" data-filter="gold">Gold</button>
+          <button class="tab" data-filter="retirement">Retirement</button>
+          <button class="tab" data-filter="stock-klse">Stock KLSE</button>
+        </div>
+        <div style="display:flex;gap:.4rem;align-items:center;flex-shrink:0">
+          <button class="sort-btn" id="btn-sort" title="Sort">↕ Value</button>
+          <button class="currency-btn active" id="btn-currency" title="Toggle currency">MYR</button>
+        </div>
+      </div>
+
+      <!-- Unified Assets Grid -->
+      <div class="assets-grid" id="assets-grid"></div>
+
+      <!-- Add Button -->
+      <section class="actions">
+        <button id="btn-add" class="btn-primary">+ Add Asset</button>
+      </section>
+    </main>
+
+    <!-- ===== SPENT TAB ===== -->
+    <main id="tab-spent" class="tab-pane">
+      <section class="summary-row card">
+        <div>
+          <div class="hero-label">This Month</div>
+          <div class="hero-amount" id="spent-month">RM 0</div>
+        </div>
+        <div style="text-align:right">
+          <div class="hero-meta" style="margin-top:0.4rem">
+            <span class="pill" id="spent-count">0 transactions</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" style="margin-top:1rem;">
+        <div class="section-title">By Category</div>
+        <div id="spent-cat-list"></div>
+      </section>
+
+      <section class="card" style="margin-top:1rem;">
+        <div class="section-title">Recent</div>
+        <div id="spent-recent-list"></div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ============ MODAL ============ -->
+  <div id="modal-overlay" class="modal-overlay" style="display:none">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="modal-title">Add Asset</h3>
+        <button id="modal-close" class="modal-close">×</button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+      <div class="modal-footer" id="modal-footer"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+  <script type="module" src="app.js?v=27"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js?v=27').catch(console.error);
+    }
+  </script>
+</body>
+</html>
