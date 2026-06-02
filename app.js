@@ -12,7 +12,7 @@ import {
   getDatabase, ref as dbRef, onValue
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
 
-const APP_VER = 'v31';
+const APP_VER = 'v32';
 
 // ═══════════════════════════════════════════════
 // 🔥 LIVE FIREBASE CONFIG
@@ -120,15 +120,34 @@ async function fetchCryptoPrices(ids) {
 }
 
 /* ═══════════════════ GOLD PRICE ═══════════════════ */
-let _goldPriceUsdPerGram = 0;
+let _goldPriceMyrPerGram = 0;
 
 async function fetchGoldPrice() {
   const urls = [
+    'https://bgd.bursamalaysia.com/en/index.html',
+    'https://corsproxy.io/?' + encodeURIComponent('https://bgd.bursamalaysia.com/en/index.html')
+  ];
+  for (const url of urls) {
+    try {
+      const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+      if (!r.ok) continue;
+      const html = await r.text();
+      const m = html.match(/id="buyPrice"[^>]*>\s*RM\s+([\d,]+\.?\d*)/);
+      if (!m) continue;
+      const price = parseFloat(m[1].replace(/,/g, ''));
+      if (!price || price < 100) continue;
+      _goldPriceMyrPerGram = price;
+      return price;
+    } catch (e) { /* try next */ }
+  }
+  console.warn('Bursa gold price failed — fallback to COMEX');
+  // Fallback: COMEX GC=F via Yahoo
+  const fallbackUrls = [
     'https://query1.finance.yahoo.com/v8/finance/chart/GC=F?interval=1d&range=1d',
     'https://query2.finance.yahoo.com/v8/finance/chart/GC=F?interval=1d&range=1d',
     'https://corsproxy.io/?' + encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/GC=F?interval=1d&range=1d')
   ];
-  for (const url of urls) {
+  for (const url of fallbackUrls) {
     try {
       const r = await fetch(url, { headers: { Accept: 'application/json', 'User-Agent': 'Mozilla/5.0' } });
       if (!r.ok) continue;
@@ -137,11 +156,10 @@ async function fetchGoldPrice() {
       const priceOz = meta?.regularMarketPrice || meta?.previousClose || meta?.chartPreviousClose;
       if (!priceOz) continue;
       const priceGramUsd = priceOz / 31.1034768;
-      _goldPriceUsdPerGram = priceGramUsd;
-      return priceGramUsd * _usdMyr;
+      _goldPriceMyrPerGram = priceGramUsd * _usdMyr;
+      return _goldPriceMyrPerGram;
     } catch (e) { /* try next */ }
   }
-  console.warn('All gold price sources failed');
   return null;
 }
 
