@@ -12,7 +12,7 @@ import {
   getDatabase, ref as dbRef, onValue
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
 
-const APP_VER = 'v30';
+const APP_VER = 'v31';
 
 // ═══════════════════════════════════════════════
 // 🔥 LIVE FIREBASE CONFIG
@@ -627,9 +627,19 @@ document.getElementById('btn-share-asset').onclick = sharePortfolio;
 async function refreshPrices() {
   await getMyrRate();
   const stocks = currentAssets.filter(a => a.category === 'stock' && a.ticker);
-  const klseStocks = currentAssets.filter(a => a.category === 'stock-klse' && a.ticker);
   const cryptos = currentAssets.filter(a => a.category === 'crypto' && a.ticker);
   const golds = currentAssets.filter(a => a.category === 'gold' || a.category === 'physical');
+  // Catch gold-named assets that slipped into stock-klse (e.g. Bursa Gold ETF)
+  const klseStocks = currentAssets.filter(a => {
+    if (a.category !== 'stock-klse' || !a.ticker) return false;
+    const nameGold = (a.name || '').toLowerCase().includes('gold');
+    const tickGold = (a.ticker || '').toLowerCase().includes('gold');
+    if (nameGold || tickGold) {
+      golds.push(a); // use unified gold price instead
+      return false;
+    }
+    return true;
+  });
 
   for (const a of stocks) {
     const p = await fetchStockPrice(a.ticker);
@@ -831,7 +841,15 @@ document.getElementById('btn-add').onclick = () => {
     if (cat === 'stock' || cat === 'stock-klse' || cat === 'crypto' || cat === 'gold') {
       priceSrc = 'live';
       if (cat === 'stock' && ticker) price = await fetchStockPrice(ticker);
-      if (cat === 'stock-klse' && ticker) price = await fetchStockPrice(ticker, true);
+      if (cat === 'stock-klse' && ticker) {
+        // Gold-named assets on KLSE should use unified gold price
+        const isGold = (name || '').toLowerCase().includes('gold') || (ticker || '').toLowerCase().includes('gold');
+        if (isGold) {
+          price = await fetchGoldPrice();
+        } else {
+          price = await fetchStockPrice(ticker, true);
+        }
+      }
       if (cat === 'crypto' && ticker) {
         const id = CRYPTO_MAP[ticker.toUpperCase()];
         if (id) {
@@ -880,7 +898,15 @@ async function editAsset(id) {
     if (cat === 'stock' || cat === 'stock-klse' || cat === 'crypto' || cat === 'gold') {
       priceSrc = 'live';
       if (cat === 'stock' && ticker) price = await fetchStockPrice(ticker);
-      if (cat === 'stock-klse' && ticker) price = await fetchStockPrice(ticker, true);
+      if (cat === 'stock-klse' && ticker) {
+        // Gold-named assets on KLSE should use unified gold price
+        const isGold = (name || '').toLowerCase().includes('gold') || (ticker || '').toLowerCase().includes('gold');
+        if (isGold) {
+          price = await fetchGoldPrice();
+        } else {
+          price = await fetchStockPrice(ticker, true);
+        }
+      }
       if (cat === 'crypto' && ticker) {
         const id = CRYPTO_MAP[ticker.toUpperCase()];
         if (id) {
