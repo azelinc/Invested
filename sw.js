@@ -1,11 +1,11 @@
-     1|const CACHE_NAME = 'invested-v27';
-     2|const FILES = [
-     3|  './',
-     4|  './index.html',
-     5|  './style.css',
-     6|  './app.js',
-     7|  './manifest.json'
-     8|];
+const CACHE_NAME = 'invested-v28';
+const FILES = [
+  './',
+  './index.html',
+  './style.css?v=28',
+  './app.js?v=28',
+  './manifest.json'
+];
      9|
     10|self.addEventListener('install', e => {
     11|  self.skipWaiting();

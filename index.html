@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Invested — Net Worth Tracker</title>
-  <link rel="stylesheet" href="style.css?v=27">
+  <link rel="stylesheet" href="style.css?v=29">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0f172a">
 </head>
@@ -12,7 +12,7 @@
 
   <!-- ============ AUTH SCREEN ============ -->
   <div id="auth-section" style="max-width:420px;margin:5rem auto;padding:1.5rem;">
-    <div class="brand center" style="font-size:2rem;margin-bottom:0.25rem">💰 Invested <small style="font-size:.7rem;color:var(--muted);font-weight:400">v27</small></div>
+    <div class="brand center" style="font-size:2rem;margin-bottom:0.25rem">💰 Invested <small style="font-size:.7rem;color:var(--muted);font-weight:400">v28</small></div>
     <div class="subtitle center" style="margin-bottom:1.5rem;color:var(--muted)">Net Worth Tracker</div>
 
     <div id="login-panel">
@@ -53,7 +53,7 @@
   <!-- ============ MAIN APP ============ -->
   <div id="app-section" style="display:none;">
     <header class="topbar">
-      <div class="brand">💰 Invested <small style="font-size:.55rem;color:var(--muted);font-weight:400">v27</small></div>
+      <div class="brand">💰 Invested <small style="font-size:.55rem;color:var(--muted);font-weight:400">v28</small></div>
       <div class="user-meta">
         <div class="user-meta-row">
           <a class="text-btn" href="https://azelinc.github.io/Done/" target="_blank">Done</a>
@@ -158,7 +158,7 @@
           <div class="hero-amount" id="asset-net-worth">RM 0</div>
         </div>
         <div style="text-align:right">
-          <button id="btn-refresh" class="refresh-btn" title="Refresh prices">⟳ Refresh</button>
+          <button id="btn-refresh-asset" class="refresh-btn" title="Refresh prices">⟳ Refresh</button>
           <button id="btn-share-asset" class="refresh-btn" title="Copy summary">📋 Share</button>
           <div class="hero-meta" style="margin-top:0.4rem">
             <span class="pill" id="asset-asset-count">0 assets</span>
@@ -232,11 +232,14 @@
     </div>
   </div>
 
+  <!-- ============ GLOBAL VERSION BADGE ============ -->
+  <div id="global-version" style="position:fixed;bottom:4px;right:8px;font-size:.6rem;opacity:.5;pointer-events:none;z-index:999;color:var(--muted)"></div>
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
-  <script type="module" src="app.js?v=27"></script>
+  <script type="module" src="app.js?v=29"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=27').catch(console.error);
+      navigator.serviceWorker.register('sw.js?v=29').catch(console.error);
     }
   </script>
 </body>

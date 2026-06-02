@@ -12,6 +12,8 @@ import {
   getDatabase, ref as dbRef, onValue
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
 
+const APP_VER = 'v29';
+
 // ═══════════════════════════════════════════════
 // 🔥 LIVE FIREBASE CONFIG
 // ═══════════════════════════════════════════════
@@ -347,6 +349,7 @@ async function captureSnapshot(allAssets) {
     const existing = await getDoc(snapRef);
     if (existing.exists()) return; // already captured today
     const total = allAssets.reduce((s,a) => s + (a.value||0), 0);
+    if (total === 0) return; // don't record zero snapshots
     const liquid = allAssets.filter(a => !a.excluded).reduce((s,a) => s + (a.value||0), 0);
     const excluded = allAssets.filter(a => a.excluded).reduce((s,a) => s + (a.value||0), 0);
     await setDoc(snapRef, { date: today, total, liquid, excluded, timestamp: Date.now() });
@@ -370,12 +373,17 @@ async function renderChart() {
 
   if (snapshots.length < 1) return;
 
-  const labels = snapshots.map(s => {
+  // Exclude days where net worth is 0 (app not opened — no snapshot taken)
+  const filtered = snapshots.filter(s => (s.total || 0) !== 0 || (s.liquid || 0) !== 0);
+
+  if (filtered.length < 1) return;
+
+  const labels = filtered.map(s => {
     const d = new Date(s.date + 'T00:00:00');
     return d.toLocaleDateString('en-MY', {day:'numeric', month:'short'});
   });
-  const totalData = snapshots.map(s => conv(s.total || 0));
-  const liquidData = snapshots.map(s => conv(s.liquid || 0));
+  const totalData = filtered.map(s => conv(s.total || 0));
+  const liquidData = filtered.map(s => conv(s.liquid || 0));
 
   const ctx = canvas.getContext('2d');
 
@@ -453,7 +461,7 @@ async function renderChart() {
 /* ═══════════════════ SHARE ═══════════════════ */
 async function sharePortfolio() {
   if (!currentAssets.length) {
-    alert("No assets to share.");
+    showToast("No assets to share.");
     return;
   }
   const allAssets = currentAssets.map(a => a.category === 'physical' ? { ...a, category: 'gold' } : a);
@@ -481,7 +489,7 @@ async function sharePortfolio() {
 
   try {
     await navigator.clipboard.writeText(text);
-    alert("Portfolio copied to clipboard! Paste it here.");
+    showToast("✅ Portfolio copied to clipboard!");
   } catch (e) {
     prompt("Copy this summary:", text);
   }
@@ -599,7 +607,7 @@ document.getElementById('btn-share-home').onclick = sharePortfolio;
 document.getElementById('btn-share-asset').onclick = sharePortfolio;
 
 /* ── Refresh prices ── */
-document.getElementById('btn-refresh').onclick = async () => {
+async function refreshPrices() {
   await getMyrRate();
   const stocks = currentAssets.filter(a => a.category === 'stock' && a.ticker);
   const klseStocks = currentAssets.filter(a => a.category === 'stock-klse' && a.ticker);
@@ -645,7 +653,12 @@ document.getElementById('btn-refresh').onclick = async () => {
       }
     }
   }
-};
+  showToast('✅ Prices updated');
+}
+
+document.getElementById('btn-refresh').onclick = refreshPrices;
+const refreshBtn2 = document.getElementById('btn-refresh-asset');
+if (refreshBtn2) refreshBtn2.onclick = refreshPrices;
 
 /* ═══════════════════ SPENT RENDER ═══════════════════ */
 function renderSpent() {
@@ -794,7 +807,7 @@ document.getElementById('btn-add').onclick = () => {
     const name = document.getElementById('m-name').value.trim();
     const ticker = document.getElementById('m-ticker').value.trim();
     const qty = parseFloat(document.getElementById('m-qty').value) || 0;
-    if (!name) { alert('Name is required'); return; }
+    if (!name) { showToast('Name is required'); return; }
 
     let price = 0, value = 0, priceSrc = 'fixed';
     if (cat === 'stock' || cat === 'stock-klse' || cat === 'crypto' || cat === 'gold') {
@@ -881,6 +894,21 @@ async function deleteAsset(id) {
   await deleteDoc(doc(db, `users/${currentUid}/assets`, id));
 }
 
+/* ═══════════════════ TOAST ═══════════════════ */
+function showToast(msg) {
+  let toast = document.getElementById('toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'toast';
+    toast.style.cssText = 'position:fixed;bottom:66px;left:50%;transform:translateX(-50%);background:#1e293b;color:#f8fafc;padding:.5rem 1rem;border-radius:8px;font-size:.82rem;z-index:2000;box-shadow:0 4px 20px rgba(0,0,0,.5);transition:opacity .25s;max-width:90vw;white-space:nowrap;pointer-events:none;';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.style.opacity = '1';
+  clearTimeout(toast._hide);
+  toast._hide = setTimeout(() => { toast.style.opacity = '0'; }, 2500);
+}
+
 /* ═══════════════════ AUTH STATE ═══════════════════ */
 onAuthStateChanged(auth, user => {
   if (user) {
@@ -897,4 +925,7 @@ onAuthStateChanged(auth, user => {
     detachListeners();
     showLogin();
   }
+  // Global version badge
+  const vEl = document.getElementById('global-version');
+  if (vEl) vEl.textContent = APP_VER;
 });
