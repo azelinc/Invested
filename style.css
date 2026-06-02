@@ -241,6 +241,19 @@ button.text-btn {
   cursor: pointer;
 }
 
+.snap-now-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: .65rem;
+  padding: 0 .15rem;
+  opacity: .45;
+  vertical-align: middle;
+  line-height: 1;
+}
+.snap-now-btn:hover { opacity: 1; color: var(--accent); }
+
 /* ── Actions ── */
 .actions { display: flex; justify-content: center; padding: .5rem 0 1rem; }
 .btn-primary {

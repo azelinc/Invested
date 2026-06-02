@@ -12,7 +12,7 @@ import {
   getDatabase, ref as dbRef, onValue
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
 
-const APP_VER = 'v29';
+const APP_VER = 'v30';
 
 // ═══════════════════════════════════════════════
 // 🔥 LIVE FIREBASE CONFIG
@@ -356,6 +356,23 @@ async function captureSnapshot(allAssets) {
   } catch(e) { console.warn('Snapshot skipped', e); }
 }
 
+/* ── Force override today's snapshot ── */
+async function forceSnapshotToday() {
+  if (!currentUid) return;
+  const allAssets = currentAssets.map(a => a.category === 'physical' ? { ...a, category: 'gold' } : a);
+  const today = new Date().toISOString().slice(0,10);
+  const total = allAssets.reduce((s,a) => s + (a.value||0), 0);
+  if (total === 0) { showToast("No assets to record"); return; }
+  const liquid = allAssets.filter(a => !a.excluded).reduce((s,a) => s + (a.value||0), 0);
+  const excluded = allAssets.filter(a => a.excluded).reduce((s,a) => s + (a.value||0), 0);
+  try {
+    const snapRef = doc(db, `users/${currentUid}/snapshots`, today);
+    await setDoc(snapRef, { date: today, total, liquid, excluded, timestamp: Date.now() });
+    showToast("📌 Today's snapshot updated");
+    await renderChart();
+  } catch(e) { console.warn('Force snapshot failed', e); showToast("Failed to save snapshot"); }
+}
+
 /* ═══════════════ NET WORTH CHART ═══════════════ */
 let chartInstance = null;
 
@@ -659,6 +676,7 @@ async function refreshPrices() {
 document.getElementById('btn-refresh').onclick = refreshPrices;
 const refreshBtn2 = document.getElementById('btn-refresh-asset');
 if (refreshBtn2) refreshBtn2.onclick = refreshPrices;
+document.getElementById('btn-snap-now').onclick = forceSnapshotToday;
 
 /* ═══════════════════ SPENT RENDER ═══════════════════ */
 function renderSpent() {
