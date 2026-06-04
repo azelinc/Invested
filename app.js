@@ -12,7 +12,7 @@ import {
   getDatabase, ref as dbRef, onValue
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
 
-const APP_VER = 'v32';
+const APP_VER = 'v33';
 
 // ═══════════════════════════════════════════════
 // 🔥 LIVE FIREBASE CONFIG
@@ -123,24 +123,32 @@ async function fetchCryptoPrices(ids) {
 let _goldPriceMyrPerGram = 0;
 
 async function fetchGoldPrice() {
-  const urls = [
-    'https://bgd.bursamalaysia.com/en/index.html',
-    'https://corsproxy.io/?' + encodeURIComponent('https://bgd.bursamalaysia.com/en/index.html')
-  ];
-  for (const url of urls) {
-    try {
-      const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-      if (!r.ok) continue;
-      const html = await r.text();
-      const m = html.match(/id="buyPrice"[^>]*>\s*RM\s+([\d,]+\.?\d*)/);
-      if (!m) continue;
-      const price = parseFloat(m[1].replace(/,/g, ''));
-      if (!price || price < 100) continue;
-      _goldPriceMyrPerGram = price;
-      return price;
-    } catch (e) { /* try next */ }
+  // Primary: Bursa Gold Dinar WebSocket (live buy price)
+  try {
+    const price = await new Promise((resolve, reject) => {
+      const ws = new WebSocket('wss://bgd-adam.bursamalaysia.com/bgd/pricestream');
+      const timeout = setTimeout(() => {
+        ws.close();
+        reject(new Error('WS timeout'));
+      }, 8000);
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.bursaBuyPrice && data.bursaBuyPrice > 0) {
+            clearTimeout(timeout);
+            ws.close();
+            resolve(data.bursaBuyPrice);
+          }
+        } catch (_) { /* skip malformed message */ }
+      };
+      ws.onerror = () => { clearTimeout(timeout); reject(new Error('WS error')); };
+      ws.onclose = () => { clearTimeout(timeout); reject(new Error('WS closed')); };
+    });
+    _goldPriceMyrPerGram = price;
+    return price;
+  } catch (e) {
+    console.warn('Bursa WS gold price failed — fallback to COMEX', e);
   }
-  console.warn('Bursa gold price failed — fallback to COMEX');
   // Fallback: COMEX GC=F via Yahoo
   const fallbackUrls = [
     'https://query1.finance.yahoo.com/v8/finance/chart/GC=F?interval=1d&range=1d',

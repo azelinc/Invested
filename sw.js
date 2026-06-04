@@ -1,26 +1,25 @@
-const CACHE_NAME = 'invested-v28';
+const CACHE_NAME = 'invested-v33';
 const FILES = [
   './',
   './index.html',
-  './style.css?v=28',
-  './app.js?v=28',
+  './style.css?v=33',
+  './app.js?v=33',
   './manifest.json'
 ];
-     9|
-    10|self.addEventListener('install', e => {
-    11|  self.skipWaiting();
-    12|  e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(FILES)));
-    13|});
-    14|
-    15|self.addEventListener('activate', e => {
-    16|  e.waitUntil(
-    17|    caches.keys().then(keys =>
-    18|      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-    19|    ).then(() => self.clients.claim())
-    20|  );
-    21|});
-    22|
-    23|self.addEventListener('fetch', e => {
-    24|  e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
-    25|});
-    26|
+
+self.addEventListener('install', e => {
+  self.skipWaiting();
+  e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(FILES)));
+});
+
+self.addEventListener('activate', e => {
+  e.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+    ).then(() => self.clients.claim())
+  );
+});
+
+self.addEventListener('fetch', e => {
+  e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
+});
