@@ -12,7 +12,7 @@ import {
   getDatabase, ref as dbRef, onValue
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
 
-const APP_VER = 'v33';
+const APP_VER = 'v39';
 
 // ═══════════════════════════════════════════════
 // 🔥 LIVE FIREBASE CONFIG
@@ -171,6 +171,24 @@ async function fetchGoldPrice() {
   return null;
 }
 
+/* ═══════════════════ KLSE SCREENER PRICE ═══════════════════ */
+async function fetchKlsePrice(ticker) {
+  // Try Yahoo Finance first (ticker already includes .KL)
+  const p = await fetchStockPrice(ticker, true);
+  if (p) return p;
+  // Fallback: KLSE Screener via CORS proxy
+  const code = ticker.toUpperCase().replace('.KL', '');
+  const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(`https://www.klsescreener.com/v2/stocks/view/${code}`)}`;
+  try {
+    const r = await fetch(proxyUrl, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(8000) });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const html = await r.text();
+    const m = html.match(/([0-9]+\.[0-9]{3})\s*[↑↓]/);
+    if (m) return parseFloat(m[1]);
+  } catch (_) { /* ignore */ }
+  return null;
+}
+
 /* ═══════════════════ AUTH UI ═══════════════════ */
 const els = {
   authSection:  document.getElementById('auth-section'),
@@ -247,7 +265,9 @@ document.getElementById('home-categories').addEventListener('click', e => {
 /* ═══════════════════ DATA / RENDER ═══════════════════ */
 let unsubAssets = null;
 let unsubSpent = null;
+let unsubTrades = null;
 let currentAssets = [];
+let currentTrades = [];
 let currentFilter = 'all';
 let currentUid = null;
 let spentExpenses = [];
@@ -284,12 +304,23 @@ function attachListeners(uid) {
       if (currentTab === 'spent') renderSpent();
     }
   }, console.error);
+
+  // Firestore trades
+  const tq = query(collection(db, `users/${uid}/trades`), orderBy('date', 'desc'));
+  unsubTrades = onSnapshot(tq, snap => {
+    currentTrades = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (currentTab === 'asset-detail') renderAssetDetail(currentDetailTicker);
+    // Sync asset qty from trades for any assets that have trade records
+    syncAllAssetsFromTrades();
+  }, console.error);
 }
 
 function detachListeners() {
   if (unsubAssets) { unsubAssets(); unsubAssets = null; }
   if (unsubSpent) { unsubSpent(); unsubSpent = null; }
+  if (unsubTrades) { unsubTrades(); unsubTrades = null; }
   currentAssets = [];
+  currentTrades = [];
   spentExpenses = [];
   currentUid = null;
 }
@@ -621,7 +652,12 @@ function renderAssets() {
   grid.innerHTML = html;
 
   grid.querySelectorAll('.btn-sm.edit').forEach(b => b.onclick = () => editAsset(b.dataset.id));
-  grid.querySelectorAll('.btn-sm.delete').forEach(b => b.onclick = () => deleteAsset(b.dataset.id));
+  grid.querySelectorAll('.btn-sm.delete').forEach(b => b.onclick = () => { b.stopPropagation(); deleteAsset(b.dataset.id); });
+  // Tap asset card → detail view
+  grid.querySelectorAll('.asset-card').forEach(c => {
+    c.style.cursor = 'pointer';
+    c.onclick = () => openAssetDetail(c.dataset.id);
+  });
 }
 
 /* ── Asset tab sub-filters ── */
@@ -676,7 +712,7 @@ async function refreshPrices() {
   }
 
   for (const a of klseStocks) {
-    const p = await fetchStockPrice(a.ticker, true);
+    const p = await fetchKlsePrice(a.ticker);
     if (p) {
       const v = p * (a.qty || 0);
       await updateDoc(doc(db, `users/${currentUid}/assets`, a.id), { price: p, value: v, lastPriceSync: Date.now() });
@@ -761,6 +797,271 @@ function renderSpent() {
   }
   document.getElementById('spent-recent-list').innerHTML = recentHtml || '<div class="empty">No recent transactions</div>';
 }
+
+/* ═══════════════════ ASSET DETAIL VIEW ═══════════════════ */
+let currentDetailTicker = null;
+
+async function openAssetDetail(assetId) {
+  const asset = currentAssets.find(a => a.id === assetId);
+  if (!asset) return;
+  const ticker = (asset.ticker || '').toUpperCase();
+  if (!ticker) { showToast('No ticker for this asset'); return; }
+  currentDetailTicker = ticker;
+  switchTab('asset-detail');
+  renderAssetDetail(ticker);
+  // Background price refresh — if it works, Firestore listener updates the view
+  if (asset.priceSrc === 'live' && ticker) {
+    try {
+      await getMyrRate();
+      let freshPrice = null;
+      if (ticker.endsWith('.KL')) freshPrice = await fetchStockPrice(ticker, true);
+      else if (asset.category === 'crypto') {
+        const id = CRYPTO_MAP[ticker];
+        if (id) { const pr = await fetchCryptoPrices([id]); freshPrice = (pr[id]?.usd || 0) * _usdMyr; }
+      } else if (asset.category === 'gold' || asset.category === 'physical') freshPrice = await fetchGoldPrice();
+      else freshPrice = await fetchStockPrice(ticker);
+      if (freshPrice) {
+        const newValue = freshPrice * (asset.qty || 0);
+        await updateDoc(doc(db, `users/${currentUid}/assets`, asset.id), { price: freshPrice, value: newValue, lastPriceSync: Date.now() });
+      }
+    } catch (_) { /* Firestore price is already current */ }
+  }
+}
+
+function renderAssetDetail(ticker) {
+  const container = document.getElementById('asset-detail-content');
+  if (!container) return;
+
+  // Find asset by ticker
+  const asset = currentAssets.find(a => (a.ticker || '').toUpperCase() === ticker);
+  if (!asset) {
+    container.innerHTML = '<div class="empty">Asset not found.</div>';
+    return;
+  }
+
+  // Filter trades for this ticker
+  const trades = currentTrades.filter(t => (t.ticker || '').toUpperCase() === ticker);
+
+  // Compute position from trades
+  let qty = 0, totalCost = 0, realizedPL = 0;
+  for (const t of trades) {
+    const total = (t.qty || 0) * (t.price || 0) + (t.fees || 0);
+    if (t.type === 'buy') {
+      qty += (t.qty || 0);
+      totalCost += total;
+    } else {
+      const avgCost = qty > 0 ? totalCost / qty : 0;
+      const soldCost = avgCost * (t.qty || 0);
+      qty -= (t.qty || 0);
+      totalCost -= soldCost;
+      realizedPL += total - soldCost;
+    }
+  }
+
+  const curPrice = asset.price || 0;
+  const curValue = curPrice * qty;
+  const avgCost = qty > 0 ? totalCost / qty : 0;
+  const unrealizedPL = curValue - totalCost;
+  const totalReturn = unrealizedPL + realizedPL;
+  const plPct = totalCost > 0 ? (unrealizedPL / totalCost * 100) : 0;
+  const isUp = unrealizedPL >= 0;
+
+  // Price source label
+  const assetQty = qty; // use trade-computed position
+  const unitLabel = asset.category === 'gold' ? 'g' : 'units';
+
+  let html = `
+    <!-- Asset header -->
+    <section class="detail-header card">
+      <div class="detail-header-left">
+        <div class="detail-name">${asset.name}</div>
+        <div class="detail-ticker">${ticker}</div>
+        <div class="detail-meta">
+          <span class="pill">${CAT_LABELS[asset.category] || asset.category}</span>
+          <span class="pill">${fmtQty(assetQty)} ${unitLabel}</span>
+        </div>
+      </div>
+      <div class="detail-header-right">
+        <div class="detail-cur-value">${fmt(conv(asset.value || 0))}</div>
+        <div class="detail-cur-price">${fmt(conv(curPrice))} / ${unitLabel}</div>
+      </div>
+    </section>
+
+    <!-- Position summary -->
+    <section class="card detail-pl-summary">
+      <div class="detail-pl-item">
+        <div class="detail-pl-label">Position Qty</div>
+        <div class="detail-pl-val">${fmtQty(qty)} ${unitLabel}</div>
+      </div>
+      <div class="detail-pl-item">
+        <div class="detail-pl-label">Avg Cost</div>
+        <div class="detail-pl-val">${fmt(conv(avgCost))}</div>
+      </div>
+      <div class="detail-pl-item">
+        <div class="detail-pl-label">Current Price</div>
+        <div class="detail-pl-val">${fmt(conv(curPrice))}</div>
+      </div>
+      <div class="detail-pl-item">
+        <div class="detail-pl-label">Cost Basis</div>
+        <div class="detail-pl-val">${fmt(conv(totalCost))}</div>
+      </div>
+      <div class="detail-pl-item">
+        <div class="detail-pl-label">Current Value</div>
+        <div class="detail-pl-val">${fmt(conv(curValue))}</div>
+      </div>
+      <div class="detail-pl-item">
+        <div class="detail-pl-label">Unrealized P&L</div>
+        <div class="detail-pl-val ${isUp ? 'pf-up' : 'pf-down'}">${fmt(conv(unrealizedPL))}${totalCost > 0 ? ` (${plPct >= 0 ? '+' : ''}${plPct.toFixed(1)}%)` : ''}</div>
+      </div>
+      <div class="detail-pl-item">
+        <div class="detail-pl-label">Realized P&L</div>
+        <div class="detail-pl-val ${realizedPL >= 0 ? 'pf-up' : 'pf-down'}">${fmt(conv(realizedPL))}</div>
+      </div>
+    </section>
+
+    <!-- Record Trade button -->
+    <div class="detail-actions">
+      <button class="btn-primary" id="btn-detail-add-trade">+ Record Trade</button>
+    </div>
+
+    <!-- Trade history -->
+    <div class="detail-section-title">Trade History (${trades.length})</div>`;
+
+  if (!trades.length) {
+    html += '<div class="empty">No trades recorded for this asset.</div>';
+  } else {
+    html += '<div class="detail-trade-list">';
+    for (const t of trades) {
+      const isBuy = t.type === 'buy';
+      const total = (t.qty || 0) * (t.price || 0);
+      html += `
+        <div class="detail-trade-item">
+          <div class="detail-trade-left">
+            <span class="detail-trade-type ${isBuy ? 'pf-buy' : 'pf-sell'}">${isBuy ? 'BUY' : 'SELL'}</span>
+            <span class="detail-trade-date">${t.date || ''}</span>
+          </div>
+          <div class="detail-trade-mid">
+            <span>${fmtQty(t.qty || 0)} @ ${fmt(conv(t.price || 0))}</span>
+            ${t.fees ? `<span class="detail-trade-fees">Fees: ${fmt(conv(t.fees))}</span>` : ''}
+          </div>
+          <div class="detail-trade-right">
+            <span class="detail-trade-total">${fmt(conv(total))}</span>
+            <button class="btn-sm delete detail-del-trade" data-id="${t.id}">×</button>
+          </div>
+        </div>`;
+    }
+    html += '</div>';
+  }
+
+  container.innerHTML = html;
+
+  // Wire up delete trade buttons — pass ticker so asset qty syncs
+  container.querySelectorAll('.detail-del-trade').forEach(b => b.onclick = () => {
+    deleteTrade(b.dataset.id, ticker);
+  });
+
+  // Wire up record trade button
+  document.getElementById('btn-detail-add-trade').onclick = () => showRecordTradeForAsset(ticker, asset.name);
+}
+
+/* ── Record Trade for a specific asset ── */
+function showRecordTradeForAsset(ticker, name) {
+  const today = new Date().toISOString().slice(0, 10);
+  openModal('Record Trade',
+    `<form id="trade-form" onsubmit="return false">
+      <div class="field">
+        <label>Asset</label>
+        <input type="text" value="${name} (${ticker})" disabled style="background:#0b1221;color:var(--muted)">
+      </div>
+      <div class="field">
+        <label>Type</label>
+        <select id="t-type">
+          <option value="buy">Buy</option>
+          <option value="sell">Sell</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Date</label>
+        <input type="date" id="t-date" value="${today}">
+      </div>
+      <div class="field">
+        <label>Quantity</label>
+        <input type="number" id="t-qty" step="any" placeholder="Number of units">
+      </div>
+      <div class="field">
+        <label>Price per unit (RM)</label>
+        <input type="number" id="t-price" step="any" placeholder="Price in RM">
+      </div>
+      <div class="field">
+        <label>Fees (RM)</label>
+        <input type="number" id="t-fees" value="0" step="any">
+      </div>
+      <div class="field">
+        <label>Notes</label>
+        <input type="text" id="t-notes" placeholder="Optional">
+      </div>
+    </form>`,
+    `<button class="btn-primary" id="t-save">Save Trade</button>
+     <button class="btn-secondary" id="t-cancel">Cancel</button>`
+  );
+  document.getElementById('t-cancel').onclick = closeModal;
+  document.getElementById('t-save').onclick = async () => {
+    const type = document.getElementById('t-type').value;
+    const date = document.getElementById('t-date').value;
+    const qty = parseFloat(document.getElementById('t-qty').value) || 0;
+    const price = parseFloat(document.getElementById('t-price').value) || 0;
+    const fees = parseFloat(document.getElementById('t-fees').value) || 0;
+    const notes = document.getElementById('t-notes').value.trim();
+    if (!qty || !price) { showToast('Qty & price required'); return; }
+    await addDoc(collection(db, `users/${currentUid}/trades`), {
+      name, ticker, type, date, qty, price, fees, notes,
+      createdAt: serverTimestamp()
+    });
+    closeModal();
+    await syncAssetFromTrades(ticker);
+    showToast(`✅ ${type === 'buy' ? 'Buy' : 'Sell'} recorded`);
+  };
+}
+
+async function deleteTrade(id, ticker) {
+  if (!confirm('Delete this trade?')) return;
+  await deleteDoc(doc(db, `users/${currentUid}/trades`, id));
+  if (ticker) await syncAssetFromTrades(ticker);
+}
+
+/* ── Sync asset qty from trades ── */
+async function syncAssetFromTrades(ticker) {
+  if (!currentUid || !ticker) return;
+  const key = ticker.toUpperCase();
+  // Compute net position from all trades for this ticker
+  const ts = currentTrades.filter(t => (t.ticker || '').toUpperCase() === key);
+  let netQty = 0;
+  for (const t of ts) {
+    if (t.type === 'buy') netQty += (t.qty || 0);
+    else netQty -= (t.qty || 0);
+  }
+  // Find matching asset doc
+  const asset = currentAssets.find(a => (a.ticker || '').toUpperCase() === key);
+  if (!asset) return;
+  const qty = Math.max(0, netQty);
+  const value = qty * (asset.price || 0);
+  await updateDoc(doc(db, `users/${currentUid}/assets`, asset.id), { qty, value });
+}
+
+/* ── Sync all asset qties from trades ── */
+async function syncAllAssetsFromTrades() {
+  if (!currentUid || !currentTrades.length) return;
+  const tickers = [...new Set(currentTrades.map(t => (t.ticker || '').toUpperCase()).filter(Boolean))];
+  for (const t of tickers) {
+    await syncAssetFromTrades(t);
+  }
+}
+
+/* ── Back button for asset detail ── */
+document.getElementById('btn-asset-detail-back').onclick = () => {
+  currentDetailTicker = null;
+  switchTab('asset');
+};
 
 /* ═══════════════════ MODAL CRUD ═══════════════════ */
 const overlay = document.getElementById('modal-overlay');
@@ -873,7 +1174,7 @@ document.getElementById('btn-add').onclick = () => {
         if (isGold) {
           price = await fetchGoldPrice();
         } else {
-          price = await fetchStockPrice(ticker, true);
+          price = await fetchKlsePrice(ticker);
         }
       }
       if (cat === 'crypto' && ticker) {
@@ -930,7 +1231,7 @@ async function editAsset(id) {
         if (isGold) {
           price = await fetchGoldPrice();
         } else {
-          price = await fetchStockPrice(ticker, true);
+          price = await fetchKlsePrice(ticker);
         }
       }
       if (cat === 'crypto' && ticker) {

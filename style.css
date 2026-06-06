@@ -530,3 +530,104 @@ button.text-btn {
   .asset-value { font-size: .88rem; }
   .cat-list { grid-template-columns: 1fr; }
 }
+
+/* ── Asset Detail View ── */
+.back-btn {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid rgba(16,185,129,.3);
+  padding: .3rem .6rem;
+  border-radius: 6px;
+  font-size: .75rem;
+  cursor: pointer;
+  margin-bottom: .45rem;
+  display: inline-block;
+}
+.back-btn:hover { background: rgba(16,185,129,.08); }
+
+.detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: .5rem;
+  margin-bottom: .45rem;
+}
+.detail-name { font-weight: 700; font-size: 1.2rem; }
+.detail-ticker { color: var(--muted); font-size: .72rem; font-weight: 500; margin-top: .05rem; }
+.detail-meta { display: flex; gap: .3rem; flex-wrap: wrap; margin-top: .3rem; }
+.detail-header-right { text-align: right; flex-shrink: 0; }
+.detail-cur-value { font-size: 1.4rem; font-weight: 700; }
+.detail-cur-price { font-size: .7rem; color: var(--muted); margin-top: .1rem; }
+
+.detail-pl-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .4rem .8rem;
+  margin-bottom: .55rem;
+}
+.detail-pl-item {
+  display: flex;
+  flex-direction: column;
+}
+.detail-pl-label { font-size: .62rem; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+.detail-pl-val { font-size: .9rem; font-weight: 600; margin-top: .05rem; }
+
+.detail-actions {
+  display: flex;
+  justify-content: center;
+  margin-bottom: .7rem;
+}
+
+.detail-section-title {
+  font-size: .72rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-bottom: .35rem;
+}
+.detail-trade-list { display: grid; gap: .3rem; }
+
+.detail-trade-item {
+  background: var(--card);
+  border-radius: 6px;
+  padding: .4rem .6rem;
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  font-size: .78rem;
+}
+.detail-trade-left {
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  flex-shrink: 0;
+}
+.detail-trade-type {
+  font-size: .6rem;
+  font-weight: 700;
+  padding: .1rem .3rem;
+  border-radius: 3px;
+}
+.pf-buy { background: rgba(16,185,129,.15); color: #10b981; }
+.pf-sell { background: rgba(239,68,68,.15); color: #ef4444; }
+.detail-trade-date { font-size: .62rem; color: var(--muted); }
+.detail-trade-mid {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: .05rem;
+  font-size: .75rem;
+}
+.detail-trade-fees { font-size: .62rem; color: var(--muted); }
+.detail-trade-right {
+  text-align: right;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: .15rem;
+}
+.detail-trade-total { font-weight: 600; font-size: .78rem; }
+.detail-del-trade { font-size: .7rem !important; padding: .1rem .2rem !important; }
+
+.pf-up { color: #10b981 !important; font-weight: 600; }
+.pf-down { color: #ef4444 !important; font-weight: 600; }
