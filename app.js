@@ -931,8 +931,10 @@ function renderAssetDetail(ticker) {
   if (!trades.length) {
     html += '<div class="empty">No trades recorded for this asset.</div>';
   } else {
+    // Display newest first
+    const displayTrades = [...trades].reverse();
     html += '<div class="detail-trade-list">';
-    for (const t of trades) {
+    for (const t of displayTrades) {
       const isBuy = t.type === 'buy';
       const total = (t.qty || 0) * (t.price || 0);
       html += `
