@@ -12,7 +12,7 @@ import {
   getDatabase, ref as dbRef, onValue
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
 
-const APP_VER = 'v39';
+const APP_VER = 'v40';
 
 // ═══════════════════════════════════════════════
 // 🔥 LIVE FIREBASE CONFIG
@@ -840,7 +840,8 @@ function renderAssetDetail(ticker) {
   }
 
   // Filter trades for this ticker
-  const trades = currentTrades.filter(t => (t.ticker || '').toUpperCase() === ticker);
+  const trades = currentTrades.filter(t => (t.ticker || '').toUpperCase() === ticker)
+    .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 
   // Compute position from trades
   let qty = 0, totalCost = 0, realizedPL = 0;
