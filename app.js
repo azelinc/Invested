@@ -12,7 +12,7 @@ import {
   getDatabase, ref as dbRef, onValue
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
 
-const APP_VER = 'v40';
+const APP_VER = 'v41';
 
 // ═══════════════════════════════════════════════
 // 🔥 LIVE FIREBASE CONFIG
@@ -271,6 +271,7 @@ let currentTrades = [];
 let currentFilter = 'all';
 let currentUid = null;
 let spentExpenses = [];
+let editMode = false;
 
 const CAT_COLORS = {
   fund:'#10b981', stock:'#3b82f6', crypto:'#f59e0b',
@@ -358,6 +359,31 @@ function sortAssets(items) {
     return [...items].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   }
   return [...items].sort((a, b) => (b.value || 0) - (a.value || 0));
+}
+
+/* ── Unrealised P/L from trades ── */
+function getAssetPL(asset) {
+  const ticker = (asset.ticker || '').toUpperCase();
+  if (!ticker) return { cost: 0, curValue: 0, pl: 0, pct: 0, hasTrades: false };
+  const trades = currentTrades.filter(t => (t.ticker || '').toUpperCase() === ticker);
+  if (!trades.length) return { cost: 0, curValue: 0, pl: 0, pct: 0, hasTrades: false };
+  let qty = 0, totalCost = 0;
+  for (const t of trades) {
+    const total = (t.qty || 0) * (t.price || 0) + (t.fees || 0);
+    if (t.type === 'buy') {
+      qty += (t.qty || 0);
+      totalCost += total;
+    } else {
+      const avgCost = qty > 0 ? totalCost / qty : 0;
+      const soldCost = avgCost * (t.qty || 0);
+      qty -= (t.qty || 0);
+      totalCost -= soldCost;
+    }
+  }
+  const curValue = (asset.price || 0) * qty;
+  const pl = curValue - totalCost;
+  const pct = totalCost > 0 ? (pl / totalCost * 100) : 0;
+  return { cost: totalCost, curValue, pl, pct, hasTrades: true };
 }
 
 /* ═══════════════════ HOME RENDER ═══════════════════ */
@@ -625,6 +651,10 @@ function renderAssets() {
       const unitLabel = a.category === 'gold' ? 'gram' : 'unit';
       const priceLabel = a.price ? `${fmt(conv(a.price))} / ${unitLabel}` : '';
       const priceTag = a.priceSrc === 'live' ? `<span class="price-tag">${priceLabel}</span>` : '';
+      const pl = getAssetPL(a);
+      const plHtml = pl.hasTrades
+        ? `<div class="asset-pl ${pl.pl >= 0 ? 'pf-up' : 'pf-down'}" style="font-size:.62rem;display:${editMode ? 'none' : 'block'}">${pl.pl >= 0 ? '+' : ''}${fmt(conv(Math.abs(pl.pl)))} (${pl.pl >= 0 ? '+' : ''}${pl.pct.toFixed(1)}%)</div>`
+        : '';
       html += `
         <div class="asset-card${a.excluded ? ' excluded' : ''}" data-id="${a.id}">
           <div class="asset-left">
@@ -640,7 +670,8 @@ function renderAssets() {
           </div>
           <div class="asset-right">
             <div class="asset-value">${fmt(conv(a.value))}</div>
-            <div class="asset-actions-row">
+            ${plHtml}
+            <div class="asset-actions-row" style="display:${editMode ? 'flex' : 'none'}">
               <button class="btn-sm edit" data-id="${a.id}">Edit</button>
               <button class="btn-sm delete" data-id="${a.id}">×</button>
             </div>
@@ -653,10 +684,14 @@ function renderAssets() {
 
   grid.querySelectorAll('.btn-sm.edit').forEach(b => b.onclick = () => editAsset(b.dataset.id));
   grid.querySelectorAll('.btn-sm.delete').forEach(b => b.onclick = () => { b.stopPropagation(); deleteAsset(b.dataset.id); });
-  // Tap asset card → detail view
+  // Tap asset card → detail view (skip when in edit mode)
   grid.querySelectorAll('.asset-card').forEach(c => {
-    c.style.cursor = 'pointer';
-    c.onclick = () => openAssetDetail(c.dataset.id);
+    c.style.cursor = editMode ? 'default' : 'pointer';
+    if (editMode) {
+      c.onclick = null;
+    } else {
+      c.onclick = () => openAssetDetail(c.dataset.id);
+    }
   });
 }
 
@@ -680,6 +715,30 @@ document.getElementById('btn-currency').onclick = () => {
   renderAssets();
   if (currentTab === 'spent') renderSpent();
 };
+
+/* ── Asset Edit Mode Toggle ── */
+function toggleAssetEditMode() {
+  editMode = !editMode;
+  const btn = document.getElementById('btn-edit-assets');
+  if (btn) {
+    btn.textContent = editMode ? '✓' : '✎';
+    btn.classList.toggle('active', editMode);
+  }
+  renderAssets();
+  // Re-attach card click handlers — don't navigate to detail in edit mode
+  const grid = document.getElementById('assets-grid');
+  if (grid) {
+    grid.querySelectorAll('.asset-card').forEach(c => {
+      c.style.cursor = editMode ? 'default' : 'pointer';
+      if (editMode) {
+        c.onclick = null;
+      } else {
+        c.onclick = () => openAssetDetail(c.dataset.id);
+      }
+    });
+  }
+}
+document.getElementById('btn-edit-assets').onclick = toggleAssetEditMode;
 
 /* ── Share listeners ── */
 document.getElementById('btn-share-home').onclick = sharePortfolio;
@@ -949,6 +1008,7 @@ function renderAssetDetail(ticker) {
           </div>
           <div class="detail-trade-right">
             <span class="detail-trade-total">${fmt(conv(total))}</span>
+            <button class="btn-sm edit-trade" data-id="${t.id}" style="font-size:.6rem;padding:.12rem .28rem;background:#334155;color:#f8fafc;border:none;border-radius:3px;cursor:pointer;line-height:1">✎</button>
             <button class="btn-sm delete detail-del-trade" data-id="${t.id}">×</button>
           </div>
         </div>`;
@@ -961,6 +1021,11 @@ function renderAssetDetail(ticker) {
   // Wire up delete trade buttons — pass ticker so asset qty syncs
   container.querySelectorAll('.detail-del-trade').forEach(b => b.onclick = () => {
     deleteTrade(b.dataset.id, ticker);
+  });
+
+  // Wire up edit trade buttons
+  container.querySelectorAll('.btn-sm.edit-trade').forEach(b => b.onclick = () => {
+    editTrade(b.dataset.id, ticker);
   });
 
   // Wire up record trade button
@@ -1030,6 +1095,68 @@ async function deleteTrade(id, ticker) {
   if (!confirm('Delete this trade?')) return;
   await deleteDoc(doc(db, `users/${currentUid}/trades`, id));
   if (ticker) await syncAssetFromTrades(ticker);
+}
+
+/* ── Edit Trade ── */
+async function editTrade(id, ticker) {
+  const trade = currentTrades.find(t => t.id === id);
+  if (!trade) { showToast('Trade not found'); return; }
+  const name = trade.name || '';
+  const today = new Date().toISOString().slice(0, 10);
+  openModal('Edit Trade',
+    `<form id="trade-form" onsubmit="return false">
+      <div class="field">
+        <label>Asset</label>
+        <input type="text" value="${name} (${ticker})" disabled style="background:#0b1221;color:var(--muted)">
+      </div>
+      <div class="field">
+        <label>Type</label>
+        <select id="t-type">
+          <option value="buy" ${trade.type === 'buy' ? 'selected' : ''}>Buy</option>
+          <option value="sell" ${trade.type === 'sell' ? 'selected' : ''}>Sell</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Date</label>
+        <input type="date" id="t-date" value="${trade.date || today}">
+      </div>
+      <div class="field">
+        <label>Quantity</label>
+        <input type="number" id="t-qty" step="any" value="${trade.qty || ''}" placeholder="Number of units">
+      </div>
+      <div class="field">
+        <label>Price per unit (RM)</label>
+        <input type="number" id="t-price" step="any" value="${trade.price || ''}" placeholder="Price in RM">
+      </div>
+      <div class="field">
+        <label>Fees (RM)</label>
+        <input type="number" id="t-fees" value="${trade.fees || 0}" step="any">
+      </div>
+      <div class="field">
+        <label>Notes</label>
+        <input type="text" id="t-notes" value="${trade.notes || ''}" placeholder="Optional">
+      </div>
+    </form>`,
+    `<button class="btn-primary" id="t-save">Update Trade</button>
+     <button class="btn-secondary" id="t-cancel">Cancel</button>`
+  );
+  document.getElementById('t-cancel').onclick = closeModal;
+  document.getElementById('t-save').onclick = async () => {
+    const type = document.getElementById('t-type').value;
+    const date = document.getElementById('t-date').value;
+    const qty = parseFloat(document.getElementById('t-qty').value) || 0;
+    const price = parseFloat(document.getElementById('t-price').value) || 0;
+    const fees = parseFloat(document.getElementById('t-fees').value) || 0;
+    const notes = document.getElementById('t-notes').value.trim();
+    if (!qty || !price) { showToast('Qty & price required'); return; }
+    await updateDoc(doc(db, `users/${currentUid}/trades`, id), {
+      type, date, qty, price, fees, notes,
+      updatedAt: serverTimestamp()
+    });
+    closeModal();
+    await syncAssetFromTrades(ticker);
+    showToast('✅ Trade updated');
+  };
 }
 
 /* ── Sync asset qty from trades ── */
