@@ -139,7 +139,6 @@ button.text-btn {
   border-color: var(--accent);
   color: var(--accent);
 }
-.sort-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 .currency-btn.active {
   background: rgba(16,185,129,.12);
   border-color: var(--accent);
@@ -628,7 +627,6 @@ button.text-btn {
   gap: .15rem;
 }
 .detail-trade-total { font-weight: 600; font-size: .78rem; }
-.detail-trade-right .btn-sm.edit-trade:hover { background: #475569 !important; }
 .detail-del-trade { font-size: .7rem !important; padding: .1rem .2rem !important; }
 
 .pf-up { color: #10b981 !important; font-weight: 600; }
