@@ -12,7 +12,7 @@ import {
   getDatabase, ref as dbRef, onValue
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
 
-const APP_VER = 'v41';
+const APP_VER = 'v46';
 
 // ═══════════════════════════════════════════════
 // 🔥 LIVE FIREBASE CONFIG
@@ -311,6 +311,7 @@ function attachListeners(uid) {
   unsubTrades = onSnapshot(tq, snap => {
     currentTrades = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     if (currentTab === 'asset-detail') renderAssetDetail(currentDetailTicker);
+    if (currentTab === 'asset') renderAssets();
     // Sync asset qty from trades for any assets that have trade records
     syncAllAssetsFromTrades();
   }, console.error);
@@ -365,7 +366,8 @@ function sortAssets(items) {
 function getAssetPL(asset) {
   const ticker = (asset.ticker || '').toUpperCase();
   if (!ticker) return { cost: 0, curValue: 0, pl: 0, pct: 0, hasTrades: false };
-  const trades = currentTrades.filter(t => (t.ticker || '').toUpperCase() === ticker);
+  const trades = currentTrades.filter(t => (t.ticker || '').toUpperCase() === ticker)
+    .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
   if (!trades.length) return { cost: 0, curValue: 0, pl: 0, pct: 0, hasTrades: false };
   let qty = 0, totalCost = 0;
   for (const t of trades) {
@@ -1029,12 +1031,17 @@ function renderAssetDetail(ticker) {
   });
 
   // Wire up record trade button
-  document.getElementById('btn-detail-add-trade').onclick = () => showRecordTradeForAsset(ticker, asset.name);
+  document.getElementById('btn-detail-add-trade').onclick = () => showRecordTradeForAsset(ticker, asset.name, asset.category);
 }
 
 /* ── Record Trade for a specific asset ── */
-function showRecordTradeForAsset(ticker, name) {
+function getCurrencyForCategory(cat) {
+  return cat === 'stock' ? 'USD' : 'RM';
+}
+
+function showRecordTradeForAsset(ticker, name, category) {
   const today = new Date().toISOString().slice(0, 10);
+  const cur = getCurrencyForCategory(category);
   openModal('Record Trade',
     `<form id="trade-form" onsubmit="return false">
       <div class="field">
@@ -1057,11 +1064,11 @@ function showRecordTradeForAsset(ticker, name) {
         <input type="number" id="t-qty" step="any" placeholder="Number of units">
       </div>
       <div class="field">
-        <label>Price per unit (RM)</label>
-        <input type="number" id="t-price" step="any" placeholder="Price in RM">
+        <label>Price per unit (${cur})</label>
+        <input type="number" id="t-price" step="any" placeholder="Price in ${cur}">
       </div>
       <div class="field">
-        <label>Fees (RM)</label>
+        <label>Fees (${cur})</label>
         <input type="number" id="t-fees" value="0" step="any">
       </div>
       <div class="field">
@@ -1077,10 +1084,13 @@ function showRecordTradeForAsset(ticker, name) {
     const type = document.getElementById('t-type').value;
     const date = document.getElementById('t-date').value;
     const qty = parseFloat(document.getElementById('t-qty').value) || 0;
-    const price = parseFloat(document.getElementById('t-price').value) || 0;
-    const fees = parseFloat(document.getElementById('t-fees').value) || 0;
+    const rawPrice = parseFloat(document.getElementById('t-price').value) || 0;
+    const rawFees = parseFloat(document.getElementById('t-fees').value) || 0;
     const notes = document.getElementById('t-notes').value.trim();
-    if (!qty || !price) { showToast('Qty & price required'); return; }
+    if (!qty || !rawPrice) { showToast('Qty & price required'); return; }
+    // Convert USD to MYR for internal storage (all prices stored as MYR)
+    const price = cur === 'USD' ? rawPrice * _usdMyr : rawPrice;
+    const fees = cur === 'USD' ? rawFees * _usdMyr : rawFees;
     await addDoc(collection(db, `users/${currentUid}/trades`), {
       name, ticker, type, date, qty, price, fees, notes,
       createdAt: serverTimestamp()
@@ -1103,6 +1113,8 @@ async function editTrade(id, ticker) {
   if (!trade) { showToast('Trade not found'); return; }
   const name = trade.name || '';
   const today = new Date().toISOString().slice(0, 10);
+  const asset = currentAssets.find(a => (a.ticker || '').toUpperCase() === (ticker || '').toUpperCase());
+  const cur = getCurrencyForCategory(asset?.category);
   openModal('Edit Trade',
     `<form id="trade-form" onsubmit="return false">
       <div class="field">
@@ -1125,12 +1137,12 @@ async function editTrade(id, ticker) {
         <input type="number" id="t-qty" step="any" value="${trade.qty || ''}" placeholder="Number of units">
       </div>
       <div class="field">
-        <label>Price per unit (RM)</label>
-        <input type="number" id="t-price" step="any" value="${trade.price || ''}" placeholder="Price in RM">
+        <label>Price per unit (${cur})</label>
+        <input type="number" id="t-price" step="any" value="${cur === 'USD' ? ((trade.price || 0) / _usdMyr).toFixed(2) : (trade.price || '')}" placeholder="Price in ${cur}">
       </div>
       <div class="field">
-        <label>Fees (RM)</label>
-        <input type="number" id="t-fees" value="${trade.fees || 0}" step="any">
+        <label>Fees (${cur})</label>
+        <input type="number" id="t-fees" value="${cur === 'USD' ? ((trade.fees || 0) / _usdMyr).toFixed(2) : (trade.fees || 0)}" step="any">
       </div>
       <div class="field">
         <label>Notes</label>
@@ -1145,10 +1157,13 @@ async function editTrade(id, ticker) {
     const type = document.getElementById('t-type').value;
     const date = document.getElementById('t-date').value;
     const qty = parseFloat(document.getElementById('t-qty').value) || 0;
-    const price = parseFloat(document.getElementById('t-price').value) || 0;
-    const fees = parseFloat(document.getElementById('t-fees').value) || 0;
+    const rawPrice = parseFloat(document.getElementById('t-price').value) || 0;
+    const rawFees = parseFloat(document.getElementById('t-fees').value) || 0;
     const notes = document.getElementById('t-notes').value.trim();
-    if (!qty || !price) { showToast('Qty & price required'); return; }
+    if (!qty || !rawPrice) { showToast('Qty & price required'); return; }
+    // Convert USD to MYR for internal storage
+    const price = cur === 'USD' ? rawPrice * _usdMyr : rawPrice;
+    const fees = cur === 'USD' ? rawFees * _usdMyr : rawFees;
     await updateDoc(doc(db, `users/${currentUid}/trades`, id), {
       type, date, qty, price, fees, notes,
       updatedAt: serverTimestamp()
