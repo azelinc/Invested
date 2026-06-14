@@ -271,6 +271,8 @@ let currentTrades = [];
 let currentFilter = 'all';
 let currentUid = null;
 let spentExpenses = [];
+let currentSavingTx = [];
+let unsubSavingTx = null;
 let editMode = false;
 
 const CAT_COLORS = {
@@ -282,6 +284,8 @@ const CAT_LABELS = {
   fund:'Fund', stock:'Stock', 'stock-klse':'Stock KLSE', crypto:'Crypto',
   ut:'Unit Trust', gold:'Gold', retirement:'Retirement', unknown:'Unknown'
 };
+const SAVING_CATEGORIES = ['fund', 'retirement', 'ut'];
+function isSavingCategory(cat) { return SAVING_CATEGORIES.includes(cat); }
 
 function attachListeners(uid) {
   currentUid = uid;
@@ -315,14 +319,23 @@ function attachListeners(uid) {
     // Sync asset qty from trades for any assets that have trade records
     syncAllAssetsFromTrades();
   }, console.error);
+
+  // Firestore saving transactions
+  const sq = query(collection(db, `users/${uid}/savingTransactions`), orderBy('date', 'desc'));
+  unsubSavingTx = onSnapshot(sq, snap => {
+    currentSavingTx = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    syncAllAssetsFromSavingTx();
+  }, console.error);
 }
 
 function detachListeners() {
   if (unsubAssets) { unsubAssets(); unsubAssets = null; }
   if (unsubSpent) { unsubSpent(); unsubSpent = null; }
   if (unsubTrades) { unsubTrades(); unsubTrades = null; }
+  if (unsubSavingTx) { unsubSavingTx(); unsubSavingTx = null; }
   currentAssets = [];
   currentTrades = [];
+  currentSavingTx = [];
   spentExpenses = [];
   currentUid = null;
 }
@@ -900,6 +913,12 @@ function renderAssetDetail(ticker) {
     return;
   }
 
+  // Savings assets (fund, retirement, ut) use saving transaction UI instead of trade UI
+  if (isSavingCategory(asset.category)) {
+    renderSavingAssetDetail(ticker, asset);
+    return;
+  }
+
   // Filter trades for this ticker
   const trades = currentTrades.filter(t => (t.ticker || '').toUpperCase() === ticker)
     .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
@@ -1032,6 +1051,196 @@ function renderAssetDetail(ticker) {
 
   // Wire up record trade button
   document.getElementById('btn-detail-add-trade').onclick = () => showRecordTradeForAsset(ticker, asset.name, asset.category);
+}
+
+/* ── Saving Asset Detail View ── */
+function renderSavingAssetDetail(ticker, asset) {
+  const container = document.getElementById('asset-detail-content');
+  if (!container) return;
+
+  const cat = asset.category || '';
+  const tx = currentSavingTx.filter(t => (t.ticker || '').toUpperCase() === ticker);
+
+  // Compute totals
+  let totalContribution = 0, totalDividend = 0, totalTopup = 0, totalWithdrawal = 0;
+  for (const t of tx) {
+    const amt = t.amount || 0;
+    switch (t.type) {
+      case 'contribution': totalContribution += amt; break;
+      case 'dividend':     totalDividend += amt; break;
+      case 'topup':        totalTopup += amt; break;
+      case 'withdrawal':   totalWithdrawal += amt; break;
+    }
+  }
+
+  const totalIn = totalContribution + totalDividend + totalTopup;
+  const totalOut = totalWithdrawal;
+  const netValue = cat === 'retirement' ? totalIn - totalOut : (totalIn - totalOut);
+
+  let html = `
+    <!-- Asset header -->
+    <section class="detail-header card">
+      <div class="detail-header-left">
+        <div class="detail-name">${asset.name}</div>
+        <div class="detail-ticker">${ticker}</div>
+        <div class="detail-meta">
+          <span class="pill">${CAT_LABELS[cat] || cat}</span>
+          <span class="pill">${fmt(conv(asset.value || 0))}</span>
+        </div>
+      </div>
+      <div class="detail-header-right">
+        <div class="detail-cur-value">${fmt(conv(asset.value || 0))}</div>
+        ${cat === 'fund' || cat === 'ut' ? `<div class="detail-cur-price">${fmtQty(asset.qty || 0)} units @ RM1</div>` : ''}
+      </div>
+    </section>
+
+    <!-- Savings summary -->
+    <section class="card detail-pl-summary">
+      <div class="detail-pl-item">
+        <div class="detail-pl-label">Current Balance</div>
+        <div class="detail-pl-val">${fmt(conv(asset.value || 0))}</div>
+      </div>`;
+
+  if (cat === 'retirement') {
+    html += `
+      <div class="detail-pl-item">
+        <div class="detail-pl-label">Total Contributions</div>
+        <div class="detail-pl-val pf-up">${fmt(conv(totalContribution))}</div>
+      </div>
+      <div class="detail-pl-item">
+        <div class="detail-pl-label">Total Dividends</div>
+        <div class="detail-pl-val pf-up">${fmt(conv(totalDividend))}</div>
+      </div>`;
+  } else {
+    html += `
+      <div class="detail-pl-item">
+        <div class="detail-pl-label">Total Top-ups</div>
+        <div class="detail-pl-val pf-up">${fmt(conv(totalTopup))}</div>
+      </div>
+      <div class="detail-pl-item">
+        <div class="detail-pl-label">Total Dividends</div>
+        <div class="detail-pl-val pf-up">${fmt(conv(totalDividend))}</div>
+      </div>`;
+  }
+
+  html += `
+      ${totalWithdrawal ? `<div class="detail-pl-item">
+        <div class="detail-pl-label">Total Withdrawals</div>
+        <div class="detail-pl-val pf-down">-${fmt(conv(totalWithdrawal))}</div>
+      </div>` : ''}
+    </section>
+
+    <!-- Record Saving button -->
+    <div class="detail-actions">
+      <button class="btn-primary" id="btn-detail-add-saving">+ Record</button>
+    </div>
+
+    <!-- Saving transaction history -->
+    <div class="detail-section-title">Records (${tx.length})</div>`;
+
+  if (!tx.length) {
+    html += '<div class="empty">No records yet. Click <strong>+ Record</strong> to add your first entry (e.g. opening balance as a Contribution/Top-up).</div>';
+  } else {
+    html += '<div class="detail-trade-list">';
+    for (const t of tx) {
+      const labels = { contribution:'Contribution', dividend:'Dividend', topup:'Top-up', withdrawal:'Withdrawal' };
+      const typeLabel = labels[t.type] || t.type;
+      const isAdd = t.type !== 'withdrawal';
+      html += `
+        <div class="detail-trade-item">
+          <div class="detail-trade-left">
+            <span class="detail-trade-type ${isAdd ? 'pf-buy' : 'pf-sell'}">${typeLabel}</span>
+            <span class="detail-trade-date">${t.date || ''}</span>
+          </div>
+          <div class="detail-trade-mid">
+            <span>${isAdd ? '' : '-'}${fmt(conv(t.amount || 0))}</span>
+            ${t.notes ? `<span class="detail-trade-fees">${t.notes}</span>` : ''}
+          </div>
+          <div class="detail-trade-right">
+            <button class="btn-sm delete detail-del-saving" data-id="${t.id}">×</button>
+          </div>
+        </div>`;
+    }
+    html += '</div>';
+  }
+
+  container.innerHTML = html;
+
+  // Wire up delete saving tx
+  container.querySelectorAll('.detail-del-saving').forEach(b => b.onclick = () => {
+    deleteSavingTransaction(b.dataset.id, ticker);
+  });
+
+  // Wire up record saving button
+  document.getElementById('btn-detail-add-saving').onclick = () => showRecordSavingForAsset(ticker, asset.name, cat);
+}
+
+/* ── Record Saving Transaction ── */
+function showRecordSavingForAsset(ticker, name, category) {
+  const today = new Date().toISOString().slice(0, 10);
+
+  // Determine available transaction types based on category
+  let typeOpts = '';
+  if (category === 'retirement') {
+    typeOpts = `
+      <option value="contribution">Contribution</option>
+      <option value="dividend">Dividend</option>
+      <option value="withdrawal">Withdrawal</option>`;
+  } else {
+    typeOpts = `
+      <option value="topup">Top-up</option>
+      <option value="dividend">Dividend</option>
+      <option value="withdrawal">Withdrawal</option>`;
+  }
+
+  openModal('Record Saving Transaction',
+    `<form id="saving-form" onsubmit="return false">
+      <div class="field">
+        <label>Asset</label>
+        <input type="text" value="${name} (${ticker})" disabled style="background:#0b1221;color:var(--muted)">
+      </div>
+      <div class="field">
+        <label>Type</label>
+        <select id="s-type">${typeOpts}</select>
+      </div>
+      <div class="field">
+        <label>Date</label>
+        <input type="date" id="s-date" value="${today}">
+      </div>
+      <div class="field">
+        <label>Amount (RM)</label>
+        <input type="number" id="s-amount" step="any" placeholder="Enter amount">
+      </div>
+      <div class="field">
+        <label>Notes</label>
+        <input type="text" id="s-notes" placeholder="e.g. Jul 2026 contribution, 2025 dividend">
+      </div>
+    </form>`,
+    `<button class="btn-primary" id="s-save">Save Record</button>
+     <button class="btn-secondary" id="s-cancel">Cancel</button>`
+  );
+
+  document.getElementById('s-cancel').onclick = closeModal;
+  document.getElementById('s-save').onclick = async () => {
+    const type = document.getElementById('s-type').value;
+    const date = document.getElementById('s-date').value;
+    const amount = parseFloat(document.getElementById('s-amount').value) || 0;
+    const notes = document.getElementById('s-notes').value.trim();
+    if (!amount) { showToast('Amount is required'); return; }
+    await addDoc(collection(db, `users/${currentUid}/savingTransactions`), {
+      name, ticker, type, date, amount, notes,
+      createdAt: serverTimestamp()
+    });
+    closeModal();
+    await syncAssetFromSavingTransactions(ticker);
+    showToast(`✅ ${type} recorded`);
+  };
+}
+
+async function deleteSavingTransaction(id, ticker) {
+  if (!confirm('Delete this record?')) return;
+  await deleteDoc(doc(db, `users/${currentUid}/savingTransactions`, id));
+  if (ticker) await syncAssetFromSavingTransactions(ticker);
 }
 
 /* ── Record Trade for a specific asset ── */
@@ -1199,6 +1408,59 @@ async function syncAllAssetsFromTrades() {
   const tickers = [...new Set(currentTrades.map(t => (t.ticker || '').toUpperCase()).filter(Boolean))];
   for (const t of tickers) {
     await syncAssetFromTrades(t);
+  }
+}
+
+/* ── Saving Transaction Sync ── */
+/* 
+  Saving transactions are events that change a savings asset's value/qty.
+  For 'retirement' (EPF/PRS): contributions & dividends add to value, withdrawals subtract.
+  For 'fund' (ASB): topups add to qty, withdrawals subtract. Value = qty (RM1/unit).
+  For 'ut' (Unit Trust): same logic as fund.
+*/
+async function syncAssetFromSavingTransactions(ticker) {
+  if (!currentUid || !ticker) return;
+  const key = ticker.toUpperCase();
+  const tx = currentSavingTx.filter(t => (t.ticker || '').toUpperCase() === key);
+  if (!tx.length) return;
+
+  // Find matching asset
+  const asset = currentAssets.find(a => (a.ticker || '').toUpperCase() === key);
+  if (!asset) return;
+
+  const cat = asset.category || '';
+  let totalContribution = 0, totalDividend = 0, totalTopup = 0, totalWithdrawal = 0;
+
+  for (const t of tx) {
+    const amt = t.amount || 0;
+    switch (t.type) {
+      case 'contribution': totalContribution += amt; break;
+      case 'dividend':     totalDividend += amt; break;
+      case 'topup':        totalTopup += amt; break;
+      case 'withdrawal':   totalWithdrawal += amt; break;
+    }
+  }
+
+  if (cat === 'retirement') {
+    // EPF/PRS: value is sum of all contributions + dividends - withdrawals
+    const newValue = Math.max(0, totalContribution + totalDividend - totalWithdrawal);
+    const qty = 0;
+    const price = newValue > 0 ? 1 : 0;
+    await updateDoc(doc(db, `users/${currentUid}/assets`, asset.id), { qty, price, value: newValue });
+  } else if (cat === 'fund' || cat === 'ut') {
+    // ASB/UT: qty = sum of topups + dividends - withdrawals, value = qty (price = RM1/unit)
+    const newQty = Math.max(0, totalTopup + totalDividend - totalWithdrawal);
+    const price = 1;
+    const value = newQty;
+    await updateDoc(doc(db, `users/${currentUid}/assets`, asset.id), { qty: newQty, price, value });
+  }
+}
+
+async function syncAllAssetsFromSavingTx() {
+  if (!currentUid || !currentSavingTx.length) return;
+  const tickers = [...new Set(currentSavingTx.map(t => (t.ticker || '').toUpperCase()).filter(Boolean))];
+  for (const t of tickers) {
+    await syncAssetFromSavingTransactions(t);
   }
 }
 
