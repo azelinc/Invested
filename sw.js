@@ -1,9 +1,9 @@
-const CACHE_NAME = 'invested-v33';
+const CACHE_NAME = 'invested-v60';
 const FILES = [
   './',
   './index.html',
-  './style.css?v=33',
-  './app.js?v=33',
+  './style.css?v=60',
+  './app.js?v=60',
   './manifest.json'
 ];
 

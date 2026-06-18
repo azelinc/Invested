@@ -12,8 +12,6 @@ import {
   getDatabase, ref as dbRef, onValue
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
 
-const APP_VER = 'v46';
-
 // ═══════════════════════════════════════════════
 // 🔥 LIVE FIREBASE CONFIG
 // ═══════════════════════════════════════════════
@@ -37,6 +35,7 @@ const rtdb = getDatabase(app);
 let _usdMyr = 4.45;
 let currency = 'myr';
 let sortMode = 'value';
+const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 function toMyr(v) { return v || 0; }
 function toUsd(v) { return (v || 0) / _usdMyr; }
@@ -274,6 +273,7 @@ let spentExpenses = [];
 let currentSavingTx = [];
 let unsubSavingTx = null;
 let editMode = false;
+const APP_VER = '60';
 
 const CAT_COLORS = {
   fund:'#10b981', stock:'#3b82f6', crypto:'#f59e0b',
@@ -824,52 +824,135 @@ const refreshBtn2 = document.getElementById('btn-refresh-asset');
 if (refreshBtn2) refreshBtn2.onclick = refreshPrices;
 document.getElementById('btn-snap-now').onclick = forceSnapshotToday;
 
-/* ═══════════════════ SPENT RENDER ═══════════════════ */
+/* ═══════════════════ SPENT RENDER (Dashboard) ═══════════════════ */
 function renderSpent() {
   const today = new Date();
   const monthPrefix = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`;
-  const approved = spentExpenses.filter(e => e.status === 'approved' && e.date?.startsWith(monthPrefix));
-  const spentTotal = approved.reduce((s, e) => s + (e.amount || 0), 0);
+  const dayOfMonth = today.getDate();
+  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
 
+  // Only count actual expenses (exclude income, investments)
+  const monthExpenses = spentExpenses.filter(e =>
+    (!e.status || e.status === 'approved') && (!e.type || e.type === 'expense') && e.date?.startsWith(monthPrefix)
+  );
+  const spentTotal = monthExpenses.reduce((s, e) => s + (e.amount || 0), 0);
+
+  // Income this month (type === 'income')
+  const monthIncome = spentExpenses.filter(e =>
+    (!e.status || e.status === 'approved') && e.type === 'income' && e.date?.startsWith(monthPrefix)
+  );
+  const incomeTotal = monthIncome.reduce((s, e) => s + (e.amount || 0), 0);
+
+  // Investment this month (type === 'investment')
+  const monthInvest = spentExpenses.filter(e =>
+    (!e.status || e.status === 'approved') && e.type === 'investment' && e.date?.startsWith(monthPrefix)
+  );
+  const investTotal = monthInvest.reduce((s, e) => s + (e.amount || 0), 0);
+
+  // 1. Hero row
   document.getElementById('spent-month').textContent = fmt(conv(spentTotal));
-  document.getElementById('spent-count').textContent = `${approved.length} transactions`;
+  document.getElementById('spent-count').textContent = `${monthExpenses.length} txns`;
 
-  // Category breakdown
+  // 2. Daily burn rate
+  const dailyBurn = dayOfMonth > 0 ? spentTotal / dayOfMonth : 0;
+  const projected = dailyBurn * daysInMonth;
+  document.getElementById('spent-burn').textContent = `${fmt(conv(dailyBurn))}/day`;
+  document.getElementById('spent-burn-detail').innerHTML =
+    `<span>${fmt(conv(dailyBurn))} / day</span>` +
+    `<span class="burn-proj">Projected: ${fmt(conv(projected))}</span>`;
+
+  // 3. YTD Monthly Expenses Trend (bars)
+  const yearPrefix = `${today.getFullYear()}-`;
+  const trendData = [];
+  document.getElementById('trend-title').textContent = 'YTD Monthly Expenses';
+  for (let i = 0; i <= today.getMonth(); i++) {
+    const m = new Date(today.getFullYear(), i, 1);
+    const prefix = `${m.getFullYear()}-${String(m.getMonth()+1).padStart(2,'0')}`;
+    const total = spentExpenses
+      .filter(e => (!e.status || e.status === 'approved') && (!e.type || e.type === 'expense') && e.date?.startsWith(prefix))
+      .reduce((s, e) => s + (e.amount || 0), 0);
+    const label = monthNames[m.getMonth()];
+    trendData.push({ label, total });
+  }
+  const maxTrend = Math.max(...trendData.map(d => d.total), 1);
+  let trendHtml = '<div class="trend-bars">';
+  for (const d of trendData) {
+    const pct = maxTrend > 0 ? (d.total / maxTrend * 100) : 0;
+    const isUp = trendData.indexOf(d) > 0 && d.total >= (trendData[trendData.indexOf(d) - 1]?.total || 0);
+    trendHtml += `
+      <div class="trend-col">
+        <div class="trend-val">${fmt(conv(d.total))}</div>
+        <div class="trend-bar-wrap">
+          <div class="trend-bar${isUp ? ' up' : ''}" style="height:${pct}%"></div>
+        </div>
+        <div class="trend-label">${d.label}</div>
+      </div>`;
+  }
+  trendHtml += '</div>';
+  document.getElementById('spent-trend').innerHTML = trendHtml;
+
+  // 4. Top categories (YTD)
+  const ytdExpenses = spentExpenses.filter(e =>
+    (!e.status || e.status === 'approved') && (!e.type || e.type === 'expense') && e.date?.startsWith(yearPrefix)
+  );
+  const catYtdTotal = ytdExpenses.reduce((s, e) => s + (e.amount || 0), 0);
   const catSpend = {};
-  for (const e of approved) {
+  for (const e of ytdExpenses) {
     catSpend[e.category || 'Others'] = (catSpend[e.category || 'Others'] || 0) + (e.amount || 0);
   }
-  const sortedCats = Object.entries(catSpend).sort((a,b) => b[1] - a[1]);
+  const sortedCats = Object.entries(catSpend).sort((a,b) => b[1] - a[1]).slice(0, 4);
   const maxCat = sortedCats.length ? sortedCats[0][1] : 1;
-
   let catHtml = '';
   for (const [cat, val] of sortedCats) {
     const pct = maxCat > 0 ? (val / maxCat * 100) : 0;
+    const share = catYtdTotal > 0 ? (val / catYtdTotal * 100) : 0;
     catHtml += `
       <div class="spent-cat-row">
         <span class="spent-cat-name">${cat}</span>
         <div class="spent-cat-bar-wrap">
           <div class="spent-cat-bar" style="width:${pct}%"></div>
         </div>
-        <span class="spent-cat-val">${fmt(conv(val))}</span>
+        <span class="spent-cat-val">${fmt(conv(val))} <span class="spent-cat-pct">${share.toFixed(0)}%</span></span>
       </div>`;
   }
-  document.getElementById('spent-cat-list').innerHTML = catHtml || '<div class="empty">No spending this month</div>';
+  document.getElementById('spent-cat-list').innerHTML = catHtml || '<div class="empty">No spending this year</div>';
 
-  // Recent transactions
-  const recent = approved.sort((a,b) => (b.timestamp||0) - (a.timestamp||0)).slice(0,15);
-  let recentHtml = '';
-  for (const e of recent) {
-    recentHtml += `
-      <div class="spent-recent-item">
-        <div class="spent-recent-left">
-          <div class="spent-recent-merchant">${e.merchant || '—'}</div>
-          <div class="spent-recent-meta">${e.category || 'Others'} · ${e.date || ''}</div>
+  // 5. Biggest expense
+  const biggest = monthExpenses.sort((a,b) => (b.amount||0) - (a.amount||0))[0];
+  if (biggest) {
+    document.getElementById('spent-biggest').innerHTML = `
+      <div class="biggest-row">
+        <div class="biggest-left">
+          <div class="biggest-cat">${biggest.category || 'Others'}</div>
+          <div class="biggest-meta">${biggest.date || ''}${biggest.notes ? ' · ' + biggest.notes : ''}${biggest.payment ? ' · ' + biggest.payment : ''}</div>
         </div>
-        <span class="spent-recent-amount">${fmt(conv(e.amount))}</span>
+        <div class="biggest-amount">${fmt(conv(biggest.amount))}</div>
       </div>`;
   }
-  document.getElementById('spent-recent-list').innerHTML = recentHtml || '<div class="empty">No recent transactions</div>';
+
+  // 6. YTD Investment Rate (replaces savings rate)
+  const ytdIncomeTotal = spentExpenses
+    .filter(e => (!e.status || e.status === 'approved') && e.type === 'income' && e.date?.startsWith(yearPrefix))
+    .reduce((s, e) => s + (e.amount || 0), 0);
+  const ytdSpentTotal = spentExpenses
+    .filter(e => (!e.status || e.status === 'approved') && (!e.type || e.type === 'expense') && e.date?.startsWith(yearPrefix))
+    .reduce((s, e) => s + (e.amount || 0), 0);
+  const ytdInvestTotal = spentExpenses
+    .filter(e => (!e.status || e.status === 'approved') && e.type === 'investment' && e.date?.startsWith(yearPrefix))
+    .reduce((s, e) => s + (e.amount || 0), 0);
+  const investRate = ytdIncomeTotal > 0 ? (ytdInvestTotal / ytdIncomeTotal * 100) : 0;
+  document.getElementById('savings-income').textContent = fmt(conv(ytdIncomeTotal));
+  document.getElementById('savings-spent').textContent = fmt(conv(ytdSpentTotal));
+  document.getElementById('savings-invested').textContent = fmt(conv(ytdInvestTotal));
+  document.getElementById('savings-pct').textContent = ytdIncomeTotal > 0 ? `${investRate.toFixed(0)}%` : '—';
+
+  // Animate investment ring arc
+  const arc = document.getElementById('savings-arc');
+  if (arc) {
+    const offset = ytdIncomeTotal > 0 ? Math.max(0, Math.min(100, investRate)) : 0;
+    arc.setAttribute('stroke-dasharray', `${offset}, ${100 - offset}`);
+    arc.setAttribute('stroke', investRate >= 30 ? '#a855f7' : investRate >= 15 ? '#f59e0b' : '#ef4444');
+  }
 }
 
 /* ═══════════════════ ASSET DETAIL VIEW ═══════════════════ */
@@ -1694,6 +1777,8 @@ onAuthStateChanged(auth, user => {
     els.authSection.style.display = 'none';
     els.appSection.style.display = 'block';
     els.userEmail.textContent = user.email;
+    // Set version on both auth and app sections
+    document.querySelectorAll('#auth-section .brand small, #app-section .brand small').forEach(el => el.textContent = 'v' + APP_VER);
     els.authError.textContent = '';
     attachListeners(user.uid);
     switchTab('home');
@@ -1703,7 +1788,4 @@ onAuthStateChanged(auth, user => {
     detachListeners();
     showLogin();
   }
-  // Global version badge
-  const vEl = document.getElementById('global-version');
-  if (vEl) vEl.textContent = APP_VER;
 });

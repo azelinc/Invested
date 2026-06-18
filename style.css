@@ -465,6 +465,17 @@ button.text-btn {
   font-weight: 600;
   flex-shrink: 0;
 }
+
+/* Child items for reallocation & reimbursement grouping */
+.spent-recent-item.child {
+  border-left: 2px solid #334155;
+  margin-left: 8px;
+  padding-top: .2rem;
+  padding-bottom: .2rem;
+  background: rgba(30, 41, 59, 0.3);
+  border-radius: 0 6px 6px 0;
+  padding-right: .4rem;
+}
 .section-title {
   font-size: .72rem;
   color: var(--muted);
@@ -633,3 +644,80 @@ button.text-btn {
 
 .pf-up { color: #10b981 !important; font-weight: 600; }
 .pf-down { color: #ef4444 !important; font-weight: 600; }
+
+/* ── Spent Dashboard ── */
+.dash-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .6rem;
+  margin-top: .6rem;
+}
+.dash-card { padding: .65rem .8rem; margin: 0; }
+@media (max-width: 500px) {
+  .dash-grid { grid-template-columns: 1fr; }
+}
+
+/* Trend bars */
+.trend-chart { min-height: 90px; }
+.trend-bars {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 4px;
+  height: 90px;
+}
+.trend-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  justify-content: flex-end;
+}
+.trend-val { font-size: .6rem; color: var(--muted); margin-bottom: 3px; white-space: nowrap; }
+.trend-bar-wrap {
+  width: 100%;
+  max-width: 32px;
+  flex: 1;
+  display: flex;
+  flex-direction: column-reverse;
+  min-height: 20px;
+}
+.trend-bar {
+  width: 100%;
+  border-radius: 3px 3px 0 0;
+  background: var(--accent);
+  min-height: 3px;
+  transition: height .3s;
+}
+.trend-bar.up { background: #10b981; }
+.trend-bar.invest { background: #a855f7; }
+.trend-label { font-size: .6rem; color: var(--muted); margin-top: 3px; }
+
+/* Category pct */
+.spent-cat-pct { font-size: .6rem; color: var(--muted); font-weight: 400; margin-left: 4px; }
+
+/* Biggest expense */
+.biggest-card { min-height: 20px; }
+.biggest-empty { font-size: .75rem; color: var(--muted); }
+.biggest-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.biggest-left { min-width: 0; }
+.biggest-cat { font-size: .85rem; font-weight: 600; }
+.biggest-meta { font-size: .65rem; color: var(--muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.biggest-amount { font-size: .95rem; font-weight: 700; flex-shrink: 0; }
+
+/* Daily burn */
+.burn-detail { display: flex; justify-content: space-between; font-size: .78rem; }
+.burn-proj { color: var(--muted); font-size: .7rem; }
+
+/* Savings card */
+.savings-card { display: flex; align-items: center; gap: 12px; }
+.savings-ring { position: relative; width: 72px; height: 72px; flex-shrink: 0; }
+.savings-pct {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem; font-weight: 700;
+}
+.savings-details { flex: 1; display: flex; flex-direction: column; gap: 3px; font-size: .78rem; }
+.savings-details > div { display: flex; justify-content: space-between; }
+.savings-label { color: var(--muted); }
