@@ -273,7 +273,7 @@ let spentExpenses = [];
 let currentSavingTx = [];
 let unsubSavingTx = null;
 let editMode = false;
-const APP_VER = '60';
+const APP_VER = '61';
 
 const CAT_COLORS = {
   fund:'#10b981', stock:'#3b82f6', crypto:'#f59e0b',
@@ -1006,10 +1006,11 @@ function renderAssetDetail(ticker) {
   const trades = currentTrades.filter(t => (t.ticker || '').toUpperCase() === ticker)
     .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 
-  // Compute position from trades
+  // Compute position from trades (all prices normalized to MYR internally)
   let qty = 0, totalCost = 0, realizedPL = 0;
   for (const t of trades) {
-    const total = (t.qty || 0) * (t.price || 0) + (t.fees || 0);
+    const p = t.currency === 'USD' ? (t.price || 0) * _usdMyr : (t.price || 0);
+    const total = (t.qty || 0) * p + (t.fees || 0);
     if (t.type === 'buy') {
       qty += (t.qty || 0);
       totalCost += total;
@@ -1099,7 +1100,8 @@ function renderAssetDetail(ticker) {
     html += '<div class="detail-trade-list">';
     for (const t of displayTrades) {
       const isBuy = t.type === 'buy';
-      const total = (t.qty || 0) * (t.price || 0);
+      const displayPrice = t.currency === 'USD' ? t.price || 0 : conv(t.price || 0);
+      const total = (t.qty || 0) * (t.currency === 'USD' ? t.price || 0 : (t.price || 0));
       html += `
         <div class="detail-trade-item">
           <div class="detail-trade-left">
@@ -1107,11 +1109,11 @@ function renderAssetDetail(ticker) {
             <span class="detail-trade-date">${t.date || ''}</span>
           </div>
           <div class="detail-trade-mid">
-            <span>${fmtQty(t.qty || 0)} @ ${fmt(conv(t.price || 0))}</span>
-            ${t.fees ? `<span class="detail-trade-fees">Fees: ${fmt(conv(t.fees))}</span>` : ''}
+            <span>${fmtQty(t.qty || 0)} @ ${t.currency === 'USD' ? '$' + (t.price || 0).toFixed(2) : fmt(conv(t.price || 0))}</span>
+            ${t.fees ? `<span class="detail-trade-fees">Fees: ${t.currency === 'USD' ? '$' + (t.fees || 0).toFixed(2) : fmt(conv(t.fees))}</span>` : ''}
           </div>
           <div class="detail-trade-right">
-            <span class="detail-trade-total">${fmt(conv(total))}</span>
+            <span class="detail-trade-total">${t.currency === 'USD' ? '$' + ((t.qty || 0) * (t.price || 0)).toFixed(2) : fmt(conv((t.qty || 0) * (t.price || 0)))}</span>
             <button class="btn-sm edit-trade" data-id="${t.id}" style="font-size:.6rem;padding:.12rem .28rem;background:#334155;color:#f8fafc;border:none;border-radius:3px;cursor:pointer;line-height:1">✎</button>
             <button class="btn-sm delete detail-del-trade" data-id="${t.id}">×</button>
           </div>
@@ -1385,6 +1387,7 @@ function showRecordTradeForAsset(ticker, name, category) {
     const fees = cur === 'USD' ? rawFees * _usdMyr : rawFees;
     await addDoc(collection(db, `users/${currentUid}/trades`), {
       name, ticker, type, date, qty, price, fees, notes,
+      currency: cur === 'USD' ? 'USD' : 'MYR',
       createdAt: serverTimestamp()
     });
     closeModal();
@@ -1430,11 +1433,11 @@ async function editTrade(id, ticker) {
       </div>
       <div class="field">
         <label>Price per unit (${cur})</label>
-        <input type="number" id="t-price" step="any" value="${cur === 'USD' ? ((trade.price || 0) / _usdMyr).toFixed(2) : (trade.price || '')}" placeholder="Price in ${cur}">
+        <input type="number" id="t-price" step="any" value="${cur === 'USD' ? (trade.currency === 'USD' ? (trade.price || '').toFixed(2) : ((trade.price || 0) / _usdMyr).toFixed(2)) : (trade.price || '')}" placeholder="Price in ${cur}">
       </div>
       <div class="field">
         <label>Fees (${cur})</label>
-        <input type="number" id="t-fees" value="${cur === 'USD' ? ((trade.fees || 0) / _usdMyr).toFixed(2) : (trade.fees || 0)}" step="any">
+        <input type="number" id="t-fees" value="${cur === 'USD' ? (trade.currency === 'USD' ? (trade.fees || 0).toFixed(2) : ((trade.fees || 0) / _usdMyr).toFixed(2)) : (trade.fees || 0)}" step="any">
       </div>
       <div class="field">
         <label>Notes</label>
@@ -1453,9 +1456,8 @@ async function editTrade(id, ticker) {
     const rawFees = parseFloat(document.getElementById('t-fees').value) || 0;
     const notes = document.getElementById('t-notes').value.trim();
     if (!qty || !rawPrice) { showToast('Qty & price required'); return; }
-    // Convert USD to MYR for internal storage
-    const price = cur === 'USD' ? rawPrice * _usdMyr : rawPrice;
-    const fees = cur === 'USD' ? rawFees * _usdMyr : rawFees;
+    const price = cur === 'USD' && trade.currency !== 'USD' ? rawPrice * _usdMyr : rawPrice;
+    const fees = cur === 'USD' && trade.currency !== 'USD' ? rawFees * _usdMyr : rawFees;
     await updateDoc(doc(db, `users/${currentUid}/trades`, id), {
       type, date, qty, price, fees, notes,
       updatedAt: serverTimestamp()
