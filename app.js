@@ -257,7 +257,6 @@ document.getElementById('btn-logout').onclick = () => signOut(auth);
 
 /* ═══════════════════ TABS ═══════════════════ */
 let currentTab = 'home';
-let navStack = ['home'];
 
 function switchTab(tab) {
   currentTab = tab;
@@ -266,20 +265,25 @@ function switchTab(tab) {
   if (tab === 'home') renderHome();
   if (tab === 'asset') renderAssets();
   if (tab === 'spent') renderSpent();
+  // Push history on every nav so hardware back stays inside app
+  history.pushState({ tab }, '', window.location.href);
 }
 
-// Intercept browser back — simulate in-app back navigation
+// Intercept hardware/gesture back — simulate in-app back navigation.
+// Mobile browsers may navigate away if history has only 1 entry, so we:
+// 1) Seed multiple dummy entries on load
+// 2) Immediately pushState on popstate (before any logic) to block exit
 history.replaceState({ tab: 'home' }, '', window.location.href);
+for (let i = 0; i < 3; i++) history.pushState({ tab: 'home' }, '', window.location.href);
+
 window.addEventListener('popstate', e => {
+  // Push state back IMMEDIATELY — prevents browser from exiting
+  history.pushState({ tab: currentTab }, '', window.location.href);
+  // Then handle in-app back navigation
   if (currentTab === 'asset-detail') {
     switchTab('asset');
-    history.pushState({ tab: 'asset' }, '', window.location.href);
   } else if (currentTab !== 'home') {
     switchTab('home');
-    history.pushState({ tab: 'home' }, '', window.location.href);
-  } else {
-    // Already on home — push state so back never exits the app
-    history.pushState({ tab: 'home' }, '', window.location.href);
   }
 });
 
