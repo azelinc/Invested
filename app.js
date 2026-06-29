@@ -328,7 +328,7 @@ let spentExpenses = [];
 let currentSavingTx = [];
 let unsubSavingTx = null;
 let editMode = false;
-const APP_VER = '64';
+const APP_VER = '67'
 
 const CAT_COLORS = {
   fund:'#10b981', stock:'#3b82f6', crypto:'#f59e0b',
@@ -477,6 +477,7 @@ async function renderHome() {
 
   document.getElementById('home-net-worth').textContent = fmt(displayTotal);
   document.getElementById('home-asset-count').textContent = `${currentAssets.length} assets`;
+  document.getElementById('home-rate').textContent = _usdMyr === 4.45 ? `${_usdMyr} (fallback)` : `${_usdMyr}`;
   document.getElementById('home-last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString('en-MY', {hour:'2-digit', minute:'2-digit'});
 
   // Show excluded amount if any
