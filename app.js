@@ -514,10 +514,17 @@ async function captureSnapshot(allAssets) {
     const snapRef = doc(db, `users/${currentUid}/snapshots`, today);
     const existing = await getDoc(snapRef);
     if (existing.exists()) return; // already captured today
-    const total = allAssets.reduce((s,a) => s + (a.value||0), 0);
+    // Convert to MYR base for consistent net worth
+    let total = 0, liquid = 0, excluded = 0;
+    for (const a of allAssets) {
+      const v = a.value || 0;
+      const nc = getNativeCurrency(a.category);
+      const myr = nc === 'USD' ? v * _usdMyr : nc === 'HKD' ? v * _hkdMyr : v;
+      total += myr;
+      if (!a.excluded) liquid += myr;
+      else excluded += myr;
+    }
     if (total === 0) return; // don't record zero snapshots
-    const liquid = allAssets.filter(a => !a.excluded).reduce((s,a) => s + (a.value||0), 0);
-    const excluded = allAssets.filter(a => a.excluded).reduce((s,a) => s + (a.value||0), 0);
     await setDoc(snapRef, { date: today, total, liquid, excluded, timestamp: Date.now() });
   } catch(e) { console.warn('Snapshot skipped', e); }
 }
@@ -527,10 +534,17 @@ async function forceSnapshotToday() {
   if (!currentUid) return;
   const allAssets = currentAssets.map(a => a.category === 'physical' ? { ...a, category: 'gold' } : a);
   const today = new Date().toISOString().slice(0,10);
-  const total = allAssets.reduce((s,a) => s + (a.value||0), 0);
+  // Convert to MYR base for consistent net worth
+  let total = 0, liquid = 0, excluded = 0;
+  for (const a of allAssets) {
+    const v = a.value || 0;
+    const nc = getNativeCurrency(a.category);
+    const myr = nc === 'USD' ? v * _usdMyr : nc === 'HKD' ? v * _hkdMyr : v;
+    total += myr;
+    if (!a.excluded) liquid += myr;
+    else excluded += myr;
+  }
   if (total === 0) { showToast("No assets to record"); return; }
-  const liquid = allAssets.filter(a => !a.excluded).reduce((s,a) => s + (a.value||0), 0);
-  const excluded = allAssets.filter(a => a.excluded).reduce((s,a) => s + (a.value||0), 0);
   try {
     const snapRef = doc(db, `users/${currentUid}/snapshots`, today);
     await setDoc(snapRef, { date: today, total, liquid, excluded, timestamp: Date.now() });
