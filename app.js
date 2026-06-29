@@ -37,9 +37,31 @@ let currency = 'myr';
 let sortMode = 'value';
 const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
+function getNativeCurrency(cat) {
+  return (cat === 'stock' || cat === 'crypto') ? 'USD' : 'MYR';
+}
+
 function toMyr(v) { return v || 0; }
 function toUsd(v) { return (v || 0) / _usdMyr; }
 function conv(v) { return currency === 'usd' ? toUsd(v) : toMyr(v); }
+
+// Format a value given its native currency category.
+// Converts to display currency (home toggle) and renders with correct symbol.
+function fmtValue(v, cat) {
+  const nativeCur = getNativeCurrency(cat);
+  const displayCur = currency.toUpperCase();
+  let displayVal = v || 0;
+  if (nativeCur === 'USD' && displayCur === 'MYR') displayVal = (v || 0) * _usdMyr;
+  if (nativeCur === 'MYR' && displayCur === 'USD') displayVal = (v || 0) / _usdMyr;
+  return new Intl.NumberFormat('en-MY', { style: 'currency', currency: displayCur }).format(displayVal);
+}
+
+// Format a value assuming it's in native category currency (no toggle conversion — shows $/RM prefix)
+function fmtNative(v, cat) {
+  const nativeCur = getNativeCurrency(cat);
+  const formatted = new Intl.NumberFormat('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v || 0);
+  return nativeCur === 'USD' ? `$${formatted}` : `RM ${formatted}`;
+}
 
 const fmt = n => new Intl.NumberFormat('en-MY', {
   style: 'currency',
@@ -235,6 +257,7 @@ document.getElementById('btn-logout').onclick = () => signOut(auth);
 
 /* ═══════════════════ TABS ═══════════════════ */
 let currentTab = 'home';
+let navStack = ['home'];
 
 function switchTab(tab) {
   currentTab = tab;
@@ -244,6 +267,21 @@ function switchTab(tab) {
   if (tab === 'asset') renderAssets();
   if (tab === 'spent') renderSpent();
 }
+
+// Intercept browser back — simulate in-app back navigation
+history.replaceState({ tab: 'home' }, '', window.location.href);
+window.addEventListener('popstate', e => {
+  if (currentTab === 'asset-detail') {
+    switchTab('asset');
+    history.pushState({ tab: 'asset' }, '', window.location.href);
+  } else if (currentTab !== 'home') {
+    switchTab('home');
+    history.pushState({ tab: 'home' }, '', window.location.href);
+  } else {
+    // Already on home — push state so back never exits the app
+    history.pushState({ tab: 'home' }, '', window.location.href);
+  }
+});
 
 document.getElementById('main-tabs').addEventListener('click', e => {
   if (!e.target.matches('.main-tab')) return;
@@ -273,7 +311,7 @@ let spentExpenses = [];
 let currentSavingTx = [];
 let unsubSavingTx = null;
 let editMode = false;
-const APP_VER = '61';
+const APP_VER = '62';
 
 const CAT_COLORS = {
   fund:'#10b981', stock:'#3b82f6', crypto:'#f59e0b',
@@ -405,10 +443,19 @@ function getAssetPL(asset) {
 async function renderHome() {
   const allAssets = currentAssets.map(a => a.category === 'physical' ? { ...a, category: 'gold' } : a);
   const includedAssets = allAssets.filter(a => !a.excluded);
-  const total = includedAssets.reduce((s, a) => s + (a.value || 0), 0);
-  const excludedTotal = allAssets.filter(a => a.excluded).reduce((s, a) => s + (a.value || 0), 0);
+  const excludedAssets = allAssets.filter(a => a.excluded);
+  // Total in MYR base for consistent net worth
+  function toMyrBase(arr) {
+    return arr.reduce((s, a) => {
+      const v = a.value || 0;
+      return s + (getNativeCurrency(a.category) === 'USD' ? v * _usdMyr : v);
+    }, 0);
+  }
+  const totalMyr = toMyrBase(includedAssets);
+  const excludedMyr = toMyrBase(excludedAssets);
+  const displayTotal = currency === 'usd' ? totalMyr / _usdMyr : totalMyr;
 
-  document.getElementById('home-net-worth').textContent = fmt(conv(total));
+  document.getElementById('home-net-worth').textContent = fmt(displayTotal);
   document.getElementById('home-asset-count').textContent = `${currentAssets.length} assets`;
   document.getElementById('home-last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString('en-MY', {hour:'2-digit', minute:'2-digit'});
 
@@ -421,15 +468,16 @@ async function renderHome() {
     excludedEl.style.cssText = 'font-size:.7rem;color:var(--muted);margin-top:.15rem;';
     heroDiv.appendChild(excludedEl);
   }
-  const grandTotal = total + excludedTotal;
-  excludedEl.textContent = excludedTotal ? `${fmt(conv(grandTotal))} total (incl. illiquid)` : '';
+  const grandTotal = currency === 'usd' ? (totalMyr + excludedMyr) / _usdMyr : totalMyr + excludedMyr;
+  excludedEl.textContent = excludedMyr ? `${fmt(grandTotal)} total (incl. illiquid)` : '';
 
-  // Category totals
+  // Category totals (in native currency)
   const cats = ['fund','stock','stock-klse','crypto','ut','gold','retirement'];
   for (const cat of cats) {
-    const catTotal = allAssets.filter(a => a.category === cat).reduce((s, a) => s + (a.value || 0), 0);
+    const items = allAssets.filter(a => a.category === cat);
+    const catTotal = items.reduce((s, a) => s + (a.value || 0), 0);
     const el = document.getElementById(`home-${cat}`);
-    if (el) el.textContent = fmt(conv(catTotal));
+    if (el) el.textContent = fmtNative(catTotal, cat);
   }
 
   // Capture daily snapshot — then render chart
@@ -581,13 +629,22 @@ async function sharePortfolio() {
   }
   const allAssets = currentAssets.map(a => a.category === 'physical' ? { ...a, category: 'gold' } : a);
   const includedAssets = allAssets.filter(a => !a.excluded);
-  const total = includedAssets.reduce((s, a) => s + (a.value || 0), 0);
+  const excludedAssets = allAssets.filter(a => a.excluded);
   const now = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
-  const excludedTotal = allAssets.filter(a => a.excluded).reduce((s, a) => s + (a.value || 0), 0);
+  // Compute totals in MYR base for consistent display
+  function toMyrBase(arr) {
+    return arr.reduce((s, a) => {
+      const v = a.value || 0;
+      return s + (getNativeCurrency(a.category) === 'USD' ? v * _usdMyr : v);
+    }, 0);
+  }
+  const totalMyr = toMyrBase(includedAssets);
+  const excludedMyr = toMyrBase(excludedAssets);
+  const displayTotal = currency === 'usd' ? totalMyr / _usdMyr : totalMyr;
 
-  let text = `Invested Portfolio — ${now}\nNet Worth: ${fmt(conv(total))} (${(currency || 'myr').toUpperCase()})\n`;
-  if (excludedTotal) text += `Excluded (illiquid): ${fmt(conv(excludedTotal))}\n`;
+  let text = `Invested Portfolio — ${now}\nNet Worth: ${fmt(displayTotal)} (${(currency || 'myr').toUpperCase()})\n`;
+  if (excludedMyr) text += `Excluded (illiquid): ${fmt(currency === 'usd' ? excludedMyr / _usdMyr : excludedMyr)}\n`;
   text += `${allAssets.length} Assets\n\n`;
 
   const cats = ['fund','stock','stock-klse','crypto','ut','gold','retirement'];
@@ -597,9 +654,10 @@ async function sharePortfolio() {
     const catTotal = items.reduce((s, a) => s + (a.value || 0), 0);
     text += `📊 ${CAT_LABELS[cat] || cat}\n`;
     for (const a of items) {
-      text += `  • ${a.name}: ${fmt(conv(a.value || 0))}${a.qty ? ` (${fmtQty(a.qty)} ${a.category === 'gold' ? 'g' : 'units'} @ ${fmt(conv(a.price || 0))})` : ''}\n`;
+      text += `  • ${a.name}: ${fmtNative(a.value || 0, a.category)}${a.qty ? ` (${fmtQty(a.qty)} ${a.category === 'gold' ? 'g' : 'units'} @ ${fmtNative(a.price || 0, a.category)})` : ''}\n`;
     }
-    text += `  Subtotal: ${fmt(conv(catTotal))} (${((catTotal/total)*100).toFixed(1)}%)\n\n`;
+    // Show subtotal in native category currency
+    text += `  Subtotal: ${fmtNative(catTotal, cat)} (${((catTotal/(totalMyr || 1))*100).toFixed(1)}%)\n\n`;
   }
 
   try {
@@ -616,13 +674,17 @@ function renderAssets() {
   const allAssets = currentAssets.map(a => a.category === 'physical' ? { ...a, category: 'gold' } : a);
   const assets = currentFilter === 'all' ? allAssets : allAssets.filter(a => a.category === currentFilter);
   const includedAssets = allAssets.filter(a => !a.excluded);
-  const total = includedAssets.reduce((s, a) => s + (a.value || 0), 0);
+  // Total in MYR base for consistent net worth (converted by toggle)
+  const totalMyr = includedAssets.reduce((s, a) => {
+    const v = a.value || 0;
+    return s + (getNativeCurrency(a.category) === 'USD' ? v * _usdMyr : v);
+  }, 0);
 
   // Populate summary row
   const nwEl = document.getElementById('asset-net-worth');
   const cntEl = document.getElementById('asset-asset-count');
   const updEl = document.getElementById('asset-last-updated');
-  if (nwEl) nwEl.textContent = fmt(conv(total));
+  if (nwEl) nwEl.textContent = fmt(currency === 'usd' ? totalMyr / _usdMyr : totalMyr);
   if (cntEl) cntEl.textContent = `${allAssets.length} assets`;
   if (updEl) updEl.textContent = 'Updated ' + new Date().toLocaleTimeString('en-MY', {hour:'2-digit', minute:'2-digit'});
 
@@ -658,17 +720,17 @@ function renderAssets() {
     html += `<div class="cat-section">
       <div class="cat-header">
         <h3>${CAT_LABELS[cat] || cat}</h3>
-        <span class="cat-total">${fmt(conv(catTotal))}</span>
+        <span class="cat-total">${fmtNative(catTotal, cat)}</span>
       </div>
       <div class="cat-list">`;
 
     for (const a of items) {
       const unitLabel = a.category === 'gold' ? 'gram' : 'unit';
-      const priceLabel = a.price ? `${fmt(conv(a.price))} / ${unitLabel}` : '';
+      const priceLabel = a.price ? `${fmtNative(a.price, a.category)} / ${unitLabel}` : '';
       const priceTag = a.priceSrc === 'live' ? `<span class="price-tag">${priceLabel}</span>` : '';
       const pl = getAssetPL(a);
       const plHtml = pl.hasTrades
-        ? `<div class="asset-pl ${pl.pl >= 0 ? 'pf-up' : 'pf-down'}" style="font-size:.62rem;display:${editMode ? 'none' : 'block'}">${pl.pl >= 0 ? '+' : ''}${fmt(conv(Math.abs(pl.pl)))} (${pl.pl >= 0 ? '+' : ''}${pl.pct.toFixed(1)}%)</div>`
+        ? `<div class="asset-pl ${pl.pl >= 0 ? 'pf-up' : 'pf-down'}" style="font-size:.62rem;display:${editMode ? 'none' : 'block'}">${pl.pl >= 0 ? '+' : ''}${fmtNative(Math.abs(pl.pl), a.category)} (${pl.pl >= 0 ? '+' : ''}${pl.pct.toFixed(1)}%)</div>`
         : '';
       html += `
         <div class="asset-card${a.excluded ? ' excluded' : ''}" data-id="${a.id}">
@@ -684,7 +746,7 @@ function renderAssets() {
             </div>
           </div>
           <div class="asset-right">
-            <div class="asset-value">${fmt(conv(a.value))}</div>
+            <div class="asset-value">${fmtNative(a.value, a.category)}</div>
             ${plHtml}
             <div class="asset-actions-row" style="display:${editMode ? 'flex' : 'none'}">
               <button class="btn-sm edit" data-id="${a.id}">Edit</button>
@@ -1006,10 +1068,10 @@ function renderAssetDetail(ticker) {
   const trades = currentTrades.filter(t => (t.ticker || '').toUpperCase() === ticker)
     .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 
-  // Compute position from trades (all prices normalized to MYR internally)
+  // Compute position from trades (prices stored in native currency per category)
   let qty = 0, totalCost = 0, realizedPL = 0;
   for (const t of trades) {
-    const p = t.currency === 'USD' ? (t.price || 0) * _usdMyr : (t.price || 0);
+    const p = t.price || 0;
     const total = (t.qty || 0) * p + (t.fees || 0);
     if (t.type === 'buy') {
       qty += (t.qty || 0);
@@ -1047,8 +1109,8 @@ function renderAssetDetail(ticker) {
         </div>
       </div>
       <div class="detail-header-right">
-        <div class="detail-cur-value">${fmt(conv(asset.value || 0))}</div>
-        <div class="detail-cur-price">${fmt(conv(curPrice))} / ${unitLabel}</div>
+        <div class="detail-cur-value">${fmtValue(asset.value || 0, asset.category)}</div>
+        <div class="detail-cur-price">${fmtValue(curPrice, asset.category)} / ${unitLabel}</div>
       </div>
     </section>
 
@@ -1060,27 +1122,27 @@ function renderAssetDetail(ticker) {
       </div>
       <div class="detail-pl-item">
         <div class="detail-pl-label">Avg Cost</div>
-        <div class="detail-pl-val">${fmt(conv(avgCost))}</div>
+        <div class="detail-pl-val">${fmtValue(avgCost, asset.category)}</div>
       </div>
       <div class="detail-pl-item">
         <div class="detail-pl-label">Current Price</div>
-        <div class="detail-pl-val">${fmt(conv(curPrice))}</div>
+        <div class="detail-pl-val">${fmtValue(curPrice, asset.category)}</div>
       </div>
       <div class="detail-pl-item">
         <div class="detail-pl-label">Cost Basis</div>
-        <div class="detail-pl-val">${fmt(conv(totalCost))}</div>
+        <div class="detail-pl-val">${fmtValue(totalCost, asset.category)}</div>
       </div>
       <div class="detail-pl-item">
         <div class="detail-pl-label">Current Value</div>
-        <div class="detail-pl-val">${fmt(conv(curValue))}</div>
+        <div class="detail-pl-val">${fmtValue(curValue, asset.category)}</div>
       </div>
       <div class="detail-pl-item">
         <div class="detail-pl-label">Unrealized P&L</div>
-        <div class="detail-pl-val ${isUp ? 'pf-up' : 'pf-down'}">${fmt(conv(unrealizedPL))}${totalCost > 0 ? ` (${plPct >= 0 ? '+' : ''}${plPct.toFixed(1)}%)` : ''}</div>
+        <div class="detail-pl-val ${isUp ? 'pf-up' : 'pf-down'}">${fmtValue(unrealizedPL, asset.category)}${totalCost > 0 ? ` (${plPct >= 0 ? '+' : ''}${plPct.toFixed(1)}%)` : ''}</div>
       </div>
       <div class="detail-pl-item">
         <div class="detail-pl-label">Realized P&L</div>
-        <div class="detail-pl-val ${realizedPL >= 0 ? 'pf-up' : 'pf-down'}">${fmt(conv(realizedPL))}</div>
+        <div class="detail-pl-val ${realizedPL >= 0 ? 'pf-up' : 'pf-down'}">${fmtValue(realizedPL, asset.category)}</div>
       </div>
     </section>
 
@@ -1109,11 +1171,11 @@ function renderAssetDetail(ticker) {
             <span class="detail-trade-date">${t.date || ''}</span>
           </div>
           <div class="detail-trade-mid">
-            <span>${fmtQty(t.qty || 0)} @ ${t.currency === 'USD' ? '$' + (t.price || 0).toFixed(2) : fmt(conv(t.price || 0))}</span>
-            ${t.fees ? `<span class="detail-trade-fees">Fees: ${t.currency === 'USD' ? '$' + (t.fees || 0).toFixed(2) : fmt(conv(t.fees))}</span>` : ''}
+            <span>${fmtQty(t.qty || 0)} @ ${t.currency === 'USD' ? '$' + (t.price || 0).toFixed(2) : fmtNative(t.price || 0, 'stock-klse')}</span>
+            ${t.fees ? `<span class="detail-trade-fees">Fees: ${t.currency === 'USD' ? '$' + (t.fees || 0).toFixed(2) : fmtNative(t.fees || 0, 'stock-klse')}</span>` : ''}
           </div>
           <div class="detail-trade-right">
-            <span class="detail-trade-total">${t.currency === 'USD' ? '$' + ((t.qty || 0) * (t.price || 0)).toFixed(2) : fmt(conv((t.qty || 0) * (t.price || 0)))}</span>
+            <span class="detail-trade-total">${t.currency === 'USD' ? '$' + ((t.qty || 0) * (t.price || 0)).toFixed(2) : fmtNative((t.qty || 0) * (t.price || 0), 'stock-klse')}</span>
             <button class="btn-sm edit-trade" data-id="${t.id}" style="font-size:.6rem;padding:.12rem .28rem;background:#334155;color:#f8fafc;border:none;border-radius:3px;cursor:pointer;line-height:1">✎</button>
             <button class="btn-sm delete detail-del-trade" data-id="${t.id}">×</button>
           </div>
@@ -1382,12 +1444,12 @@ function showRecordTradeForAsset(ticker, name, category) {
     const rawFees = parseFloat(document.getElementById('t-fees').value) || 0;
     const notes = document.getElementById('t-notes').value.trim();
     if (!qty || !rawPrice) { showToast('Qty & price required'); return; }
-    // Convert USD to MYR for internal storage (all prices stored as MYR)
-    const price = cur === 'USD' ? rawPrice * _usdMyr : rawPrice;
-    const fees = cur === 'USD' ? rawFees * _usdMyr : rawFees;
+    // Store in native currency per category — stock=USD, stock-klse=MYR, etc.
+    const price = rawPrice;
+    const fees = rawFees;
     await addDoc(collection(db, `users/${currentUid}/trades`), {
       name, ticker, type, date, qty, price, fees, notes,
-      currency: cur === 'USD' ? 'USD' : 'MYR',
+      currency: cur,
       createdAt: serverTimestamp()
     });
     closeModal();
@@ -1456,8 +1518,8 @@ async function editTrade(id, ticker) {
     const rawFees = parseFloat(document.getElementById('t-fees').value) || 0;
     const notes = document.getElementById('t-notes').value.trim();
     if (!qty || !rawPrice) { showToast('Qty & price required'); return; }
-    const price = cur === 'USD' && trade.currency !== 'USD' ? rawPrice * _usdMyr : rawPrice;
-    const fees = cur === 'USD' && trade.currency !== 'USD' ? rawFees * _usdMyr : rawFees;
+    const price = rawPrice;
+    const fees = rawFees;
     await updateDoc(doc(db, `users/${currentUid}/trades`, id), {
       type, date, qty, price, fees, notes,
       updatedAt: serverTimestamp()
