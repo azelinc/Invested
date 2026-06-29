@@ -33,12 +33,15 @@ const rtdb = getDatabase(app);
 
 /* ═══════════════════ UTILS ═══════════════════ */
 let _usdMyr = 4.45;
+let _hkdMyr = _usdMyr / 7.8;
 let currency = 'myr';
 let sortMode = 'value';
 const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 function getNativeCurrency(cat) {
-  return (cat === 'stock' || cat === 'crypto') ? 'USD' : 'MYR';
+  if (cat === 'stock' || cat === 'crypto') return 'USD';
+  if (cat === 'stock-hk') return 'HKD';
+  return 'MYR';
 }
 
 function toMyr(v) { return v || 0; }
@@ -52,15 +55,19 @@ function fmtValue(v, cat) {
   const displayCur = currency.toUpperCase();
   let displayVal = v || 0;
   if (nativeCur === 'USD' && displayCur === 'MYR') displayVal = (v || 0) * _usdMyr;
+  if (nativeCur === 'HKD' && displayCur === 'MYR') displayVal = (v || 0) * _hkdMyr;
   if (nativeCur === 'MYR' && displayCur === 'USD') displayVal = (v || 0) / _usdMyr;
+  if (nativeCur === 'HKD' && displayCur === 'USD') displayVal = (v || 0) / 7.8;
   return new Intl.NumberFormat('en-MY', { style: 'currency', currency: displayCur }).format(displayVal);
 }
 
-// Format a value assuming it's in native category currency (no toggle conversion — shows $/RM prefix)
+// Format a value in its native category currency with $/HK$/RM prefix (no toggle conversion)
 function fmtNative(v, cat) {
   const nativeCur = getNativeCurrency(cat);
   const formatted = new Intl.NumberFormat('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v || 0);
-  return nativeCur === 'USD' ? `$${formatted}` : `RM ${formatted}`;
+  if (nativeCur === 'USD') return `$${formatted}`;
+  if (nativeCur === 'HKD') return `HK$${formatted}`;
+  return `RM ${formatted}`;
 }
 
 const fmt = n => new Intl.NumberFormat('en-MY', {
@@ -97,14 +104,20 @@ async function getMyrRate() {
     });
     const d = await r.json();
     const usd = d?.data?.find(x => x.currency_code === 'USD');
-    if (usd?.rate?.middle_rate) _usdMyr = usd.rate.middle_rate;
+    if (usd?.rate?.middle_rate) {
+      _usdMyr = usd.rate.middle_rate;
+      _hkdMyr = _usdMyr / 7.8;
+    }
     else throw new Error('USD rate not found');
   } catch (e) {
     console.warn('BNM rate failed, falling back', e);
     try {
       const r = await fetch('https://api.exchangerate-api.com/v4/latest/USD', { cache: 'no-store' });
       const d = await r.json();
-      if (d?.rates?.MYR) _usdMyr = d.rates.MYR;
+      if (d?.rates?.MYR) {
+        _usdMyr = d.rates.MYR;
+        _hkdMyr = _usdMyr / 7.8;
+      }
     } catch (e2) { console.warn('Fallback rate failed', e2); }
   }
   return _usdMyr;
@@ -315,15 +328,15 @@ let spentExpenses = [];
 let currentSavingTx = [];
 let unsubSavingTx = null;
 let editMode = false;
-const APP_VER = '63';
+const APP_VER = '64';
 
 const CAT_COLORS = {
   fund:'#10b981', stock:'#3b82f6', crypto:'#f59e0b',
-  'stock-klse':'#84cc16',
+  'stock-klse':'#84cc16', 'stock-hk':'#f97316',
   ut:'#8b5cf6', gold:'#06b6d4', retirement:'#f43f5e', unknown:'#64748b'
 };
 const CAT_LABELS = {
-  fund:'Fund', stock:'Stock', 'stock-klse':'Stock KLSE', crypto:'Crypto',
+  fund:'Fund', stock:'Stock', 'stock-klse':'Stock KLSE', 'stock-hk':'Stock HK', crypto:'Crypto',
   ut:'Unit Trust', gold:'Gold', retirement:'Retirement', unknown:'Unknown'
 };
 const SAVING_CATEGORIES = ['fund', 'retirement', 'ut'];
@@ -452,7 +465,10 @@ async function renderHome() {
   function toMyrBase(arr) {
     return arr.reduce((s, a) => {
       const v = a.value || 0;
-      return s + (getNativeCurrency(a.category) === 'USD' ? v * _usdMyr : v);
+      const nc = getNativeCurrency(a.category);
+      if (nc === 'USD') return s + v * _usdMyr;
+      if (nc === 'HKD') return s + v * _hkdMyr;
+      return s + v;
     }, 0);
   }
   const totalMyr = toMyrBase(includedAssets);
@@ -476,7 +492,7 @@ async function renderHome() {
   excludedEl.textContent = excludedMyr ? `${fmt(grandTotal)} total (incl. illiquid)` : '';
 
   // Category totals (in native currency)
-  const cats = ['fund','stock','stock-klse','crypto','ut','gold','retirement'];
+  const cats = ['fund','stock','stock-hk','stock-klse','crypto','ut','gold','retirement'];
   for (const cat of cats) {
     const items = allAssets.filter(a => a.category === cat);
     const catTotal = items.reduce((s, a) => s + (a.value || 0), 0);
@@ -640,7 +656,10 @@ async function sharePortfolio() {
   function toMyrBase(arr) {
     return arr.reduce((s, a) => {
       const v = a.value || 0;
-      return s + (getNativeCurrency(a.category) === 'USD' ? v * _usdMyr : v);
+      const nc = getNativeCurrency(a.category);
+      if (nc === 'USD') return s + v * _usdMyr;
+      if (nc === 'HKD') return s + v * _hkdMyr;
+      return s + v;
     }, 0);
   }
   const totalMyr = toMyrBase(includedAssets);
@@ -651,7 +670,7 @@ async function sharePortfolio() {
   if (excludedMyr) text += `Excluded (illiquid): ${fmt(currency === 'usd' ? excludedMyr / _usdMyr : excludedMyr)}\n`;
   text += `${allAssets.length} Assets\n\n`;
 
-  const cats = ['fund','stock','stock-klse','crypto','ut','gold','retirement'];
+  const cats = ['fund','stock','stock-hk','stock-klse','crypto','ut','gold','retirement'];
   for (const cat of cats) {
     const items = allAssets.filter(a => a.category === cat).sort((a, b) => (b.value || 0) - (a.value || 0));
     if (!items.length) continue;
@@ -681,7 +700,10 @@ function renderAssets() {
   // Total in MYR base for consistent net worth (converted by toggle)
   const totalMyr = includedAssets.reduce((s, a) => {
     const v = a.value || 0;
-    return s + (getNativeCurrency(a.category) === 'USD' ? v * _usdMyr : v);
+    const nc = getNativeCurrency(a.category);
+    if (nc === 'USD') return s + v * _usdMyr;
+    if (nc === 'HKD') return s + v * _hkdMyr;
+    return s + v;
   }, 0);
 
   // Populate summary row
@@ -716,7 +738,7 @@ function renderAssets() {
 
   let html = '';
   for (const cat of Object.keys(byCat).sort((a,b) => {
-    const order = ['fund','stock','stock-klse','crypto','ut','gold','retirement','unknown'];
+    const order = ['fund','stock','stock-hk','stock-klse','crypto','ut','gold','retirement','unknown'];
     return order.indexOf(a) - order.indexOf(b);
   })) {
     const items = sortAssets(byCat[cat]);
