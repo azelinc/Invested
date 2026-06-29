@@ -126,7 +126,7 @@ async function fetchStockPrice(ticker, isKlse=false) {
       if (!r.ok) continue;
       const d = await r.json();
       const price = d?.chart?.result?.[0]?.meta?.regularMarketPrice;
-      if (price != null) return isBursa ? price : price * _usdMyr;
+      if (price != null) return isBursa ? price : price;
     } catch (e) { /* try next */ }
   }
   console.warn('All Yahoo sources failed for', ticker);
@@ -317,7 +317,7 @@ let spentExpenses = [];
 let currentSavingTx = [];
 let unsubSavingTx = null;
 let editMode = false;
-const APP_VER = '68'
+const APP_VER = '69'
 
 const CAT_COLORS = {
   fund:'#10b981', stock:'#3b82f6', crypto:'#f59e0b',
@@ -892,9 +892,8 @@ async function refreshPrices() {
       const id = CRYPTO_MAP[a.ticker?.toUpperCase()];
       const pUsd = prices[id]?.usd;
       if (pUsd) {
-        const p = pUsd * _usdMyr;
-        const v = p * (a.qty || 0);
-        await updateDoc(doc(db, `users/${currentUid}/assets`, a.id), { price: p, value: v, lastPriceSync: Date.now() });
+        const v = pUsd * (a.qty || 0);
+        await updateDoc(doc(db, `users/${currentUid}/assets`, a.id), { price: pUsd, value: v, lastPriceSync: Date.now() });
       }
     }
   }
@@ -1765,7 +1764,7 @@ document.getElementById('btn-add').onclick = () => {
         const id = CRYPTO_MAP[ticker.toUpperCase()];
         if (id) {
           const pr = await fetchCryptoPrices([id]);
-          price = (pr[id]?.usd || 0) * _usdMyr;
+          price = (pr[id]?.usd || 0);
         }
       }
       if (cat === 'gold') price = await fetchGoldPrice();
@@ -1822,7 +1821,7 @@ async function editAsset(id) {
         const id = CRYPTO_MAP[ticker.toUpperCase()];
         if (id) {
           const pr = await fetchCryptoPrices([id]);
-          price = (pr[id]?.usd || 0) * _usdMyr;
+          price = (pr[id]?.usd || 0);
         }
       }
       if (cat === 'gold') price = await fetchGoldPrice();
