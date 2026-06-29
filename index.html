@@ -12,7 +12,7 @@
 
   <!-- ============ AUTH SCREEN ============ -->
   <div id="auth-section" style="max-width:420px;margin:5rem auto;padding:1.5rem;">
-    <div class="brand center" style="font-size:2rem;margin-bottom:0.25rem">💰 Invested <small style="font-size:.7rem;color:var(--muted);font-weight:400">v69</small></div>
+    <div class="brand center" style="font-size:2rem;margin-bottom:0.25rem">💰 Invested <small style="font-size:.7rem;color:var(--muted);font-weight:400">v70</small></div>
     <div class="subtitle center" style="margin-bottom:1.5rem;color:var(--muted)">Net Worth Tracker</div>
 
     <div id="login-panel">
@@ -53,7 +53,7 @@
   <!-- ============ MAIN APP ============ -->
   <div id="app-section" style="display:none;">
     <header class="topbar">
-      <div class="brand">💰 Invested <small style="font-size:.55rem;color:var(--muted);font-weight:400">v69</small></div>
+      <div class="brand">💰 Invested <small style="font-size:.55rem;color:var(--muted);font-weight:400">v70</small></div>
       <div class="user-meta">
         <div class="user-meta-row">
           <button id="btn-logout" class="text-btn">Logout</button>
@@ -75,10 +75,12 @@
         <div>
           <div class="hero-label">Net Worth <button id="btn-snap-now" class="snap-now-btn" title="Override today's snapshot">📌</button></div>
           <div class="hero-amount" id="home-net-worth">RM 0</div>
+          <div style="margin-top:0.5rem">
+            <button id="btn-refresh" class="refresh-btn" title="Refresh prices">⟳ Refresh</button>
+            <button id="btn-share-home" class="refresh-btn" title="Copy summary">📋 Share</button>
+          </div>
         </div>
-        <div style="text-align:right">
-          <button id="btn-refresh" class="refresh-btn" title="Refresh prices">⟳ Refresh</button>
-          <button id="btn-share-home" class="refresh-btn" title="Copy summary">📋 Share</button>
+        <div>
           <div class="hero-meta" style="margin-top:0.4rem">
             <span class="pill" id="home-asset-count">0 assets</span>
             <span class="pill" id="home-rate">-</span>
