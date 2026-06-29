@@ -1,4 +1,4 @@
-const CACHE_NAME = 'invested-v67';
+const CACHE_NAME = 'invested-v68';
 const FILES = [
   './',
   './index.html',

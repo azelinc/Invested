@@ -97,28 +97,17 @@ const CRYPTO_MAP = {
 };
 
 async function getMyrRate() {
+  // Read BNM rate stored by sync_prices.py cron (avoids browser CORS with BNM API)
+  if (!currentUid) return 4.45;
   try {
-    const r = await fetch('https://api.bnm.gov.my/public/exchange-rate', {
-      headers: { Accept: 'application/vnd.BNM.API.v1+json' },
-      cache: 'no-store'
-    });
-    const d = await r.json();
-    const usd = d?.data?.find(x => x.currency_code === 'USD');
-    if (usd?.rate?.middle_rate) {
-      _usdMyr = usd.rate.middle_rate;
+    const rateRef = doc(db, `users/${currentUid}/config/rate`);
+    const rateSnap = await getDoc(rateRef);
+    if (rateSnap.exists() && rateSnap.data().usdMyr) {
+      _usdMyr = rateSnap.data().usdMyr;
       _hkdMyr = _usdMyr / 7.8;
     }
-    else throw new Error('USD rate not found');
   } catch (e) {
-    console.warn('BNM rate failed, falling back', e);
-    try {
-      const r = await fetch('https://api.exchangerate-api.com/v4/latest/USD', { cache: 'no-store' });
-      const d = await r.json();
-      if (d?.rates?.MYR) {
-        _usdMyr = d.rates.MYR;
-        _hkdMyr = _usdMyr / 7.8;
-      }
-    } catch (e2) { console.warn('Fallback rate failed', e2); }
+    console.warn('Rate fetch failed', e);
   }
   return _usdMyr;
 }
@@ -328,7 +317,7 @@ let spentExpenses = [];
 let currentSavingTx = [];
 let unsubSavingTx = null;
 let editMode = false;
-const APP_VER = '67'
+const APP_VER = '68'
 
 const CAT_COLORS = {
   fund:'#10b981', stock:'#3b82f6', crypto:'#f59e0b',
@@ -477,7 +466,7 @@ async function renderHome() {
 
   document.getElementById('home-net-worth').textContent = fmt(displayTotal);
   document.getElementById('home-asset-count').textContent = `${currentAssets.length} assets`;
-  document.getElementById('home-rate').textContent = _usdMyr === 4.45 ? `${_usdMyr} (fallback)` : `${_usdMyr}`;
+  document.getElementById('home-rate').textContent = `BNM ${_usdMyr}`;
   document.getElementById('home-last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString('en-MY', {hour:'2-digit', minute:'2-digit'});
 
   // Show excluded amount if any
