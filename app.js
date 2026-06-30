@@ -32,7 +32,7 @@ const db = getFirestore(app);
 const rtdb = getDatabase(app);
 
 /* ═══════════════════ UTILS ═══════════════════ */
-let _usdMyr = 4.45;
+let _usdMyr = parseFloat(localStorage.getItem('usdMyr')) || 4.45;
 let _hkdMyr = _usdMyr / 7.8;
 let currency = 'myr';
 let sortMode = 'value';
@@ -105,9 +105,19 @@ async function getMyrRate() {
     if (rateSnap.exists() && rateSnap.data().usdMyr) {
       _usdMyr = rateSnap.data().usdMyr;
       _hkdMyr = _usdMyr / 7.8;
+      localStorage.setItem('usdMyr', _usdMyr);
     }
   } catch (e) {
-    console.warn('Rate fetch failed', e);
+    console.warn('BNM rate failed, falling back', e);
+    try {
+      const r = await fetch('https://api.exchangerate-api.com/v4/latest/USD', { cache: 'no-store' });
+      const d = await r.json();
+      if (d?.rates?.MYR) {
+        _usdMyr = d.rates.MYR;
+        _hkdMyr = _usdMyr / 7.8;
+        localStorage.setItem('usdMyr', _usdMyr);
+      }
+    } catch (e2) { console.warn('Fallback rate failed', e2); }
   }
   return _usdMyr;
 }
@@ -1875,6 +1885,12 @@ onAuthStateChanged(auth, user => {
     els.authError.textContent = '';
     attachListeners(user.uid);
     switchTab('home');
+    // Background rate fetch — updates _usdMyr silently, Firestore re-renders
+    getMyrRate().then(() => {
+      // Re-render current view with live rate
+      if (currentTab === 'home') renderHome();
+      else if (currentTab === 'asset') renderAssets();
+    }).catch(() => {});
   } else {
     els.authSection.style.display = 'block';
     els.appSection.style.display = 'none';
