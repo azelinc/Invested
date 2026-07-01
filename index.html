@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Invested — Net Worth Tracker</title>
-  <link rel="stylesheet" href="style.css?v=66">
+  <link rel="stylesheet" href="style.css?v=75">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0f172a">
 </head>
@@ -12,7 +12,7 @@
 
   <!-- ============ AUTH SCREEN ============ -->
   <div id="auth-section" style="max-width:420px;margin:5rem auto;padding:1.5rem;">
-    <div class="brand center" style="font-size:2rem;margin-bottom:0.25rem">💰 Invested <small style="font-size:.7rem;color:var(--muted);font-weight:400">v71</small></div>
+    <div class="brand center" style="font-size:2rem;margin-bottom:0.25rem">💰 Invested <small style="font-size:.7rem;color:var(--muted);font-weight:400">v75</small></div>
     <div class="subtitle center" style="margin-bottom:1.5rem;color:var(--muted)">Net Worth Tracker</div>
 
     <div id="login-panel">
@@ -53,7 +53,7 @@
   <!-- ============ MAIN APP ============ -->
   <div id="app-section" style="display:none;">
     <header class="topbar">
-      <div class="brand">💰 Invested <small style="font-size:.55rem;color:var(--muted);font-weight:400">v71</small></div>
+      <div class="brand">💰 Invested <small style="font-size:.55rem;color:var(--muted);font-weight:400">v75</small></div>
       <div class="user-meta">
         <div class="user-meta-row">
           <button id="btn-logout" class="text-btn">Logout</button>
@@ -84,6 +84,7 @@
           <div class="hero-meta" style="margin-top:0.4rem">
             <span class="pill" id="home-asset-count">0 assets</span>
             <span class="pill" id="home-rate">-</span>
+            <button class="pill" id="btn-reorder" title="Reorder cards">↕</button>
             <span class="pill" id="home-last-updated">Updated today</span>
           </div>
         </div>
@@ -91,56 +92,56 @@
 
       <!-- Category summary cards -->
       <div class="home-grid" id="home-categories">
-        <div class="home-card" data-cat="fund">
+      <div class="home-card" data-cat="fund" draggable="true">
           <div class="home-card-dot" style="background:#10b981"></div>
           <div class="home-card-info">
             <div class="home-card-label">Fund</div>
             <div class="home-card-value" id="home-fund">RM 0</div>
           </div>
         </div>
-        <div class="home-card" data-cat="stock">
+        <div class="home-card" data-cat="stock" draggable="true">
           <div class="home-card-dot" style="background:#3b82f6"></div>
           <div class="home-card-info">
-            <div class="home-card-label">Stock</div>
+            <div class="home-card-label">Stock US</div>
             <div class="home-card-value" id="home-stock">RM 0</div>
           </div>
         </div>
-        <div class="home-card" data-cat="crypto">
+        <div class="home-card" data-cat="crypto" draggable="true">
           <div class="home-card-dot" style="background:#f59e0b"></div>
           <div class="home-card-info">
             <div class="home-card-label">Crypto</div>
             <div class="home-card-value" id="home-crypto">RM 0</div>
           </div>
         </div>
-        <div class="home-card" data-cat="ut">
+        <div class="home-card" data-cat="ut" draggable="true">
           <div class="home-card-dot" style="background:#8b5cf6"></div>
           <div class="home-card-info">
             <div class="home-card-label">Unit Trust</div>
             <div class="home-card-value" id="home-ut">RM 0</div>
           </div>
         </div>
-        <div class="home-card" data-cat="gold">
+        <div class="home-card" data-cat="gold" draggable="true">
           <div class="home-card-dot" style="background:#06b6d4"></div>
           <div class="home-card-info">
             <div class="home-card-label">Gold</div>
             <div class="home-card-value" id="home-gold">RM 0</div>
           </div>
         </div>
-        <div class="home-card" data-cat="retirement">
+        <div class="home-card" data-cat="retirement" draggable="true">
           <div class="home-card-dot" style="background:#f43f5e"></div>
           <div class="home-card-info">
             <div class="home-card-label">Retirement</div>
             <div class="home-card-value" id="home-retirement">RM 0</div>
           </div>
         </div>
-        <div class="home-card" data-cat="stock-klse">
+        <div class="home-card" data-cat="stock-klse" draggable="true">
           <div class="home-card-dot" style="background:#84cc16"></div>
           <div class="home-card-info">
-            <div class="home-card-label">Stock KLSE</div>
+            <div class="home-card-label">Stock KL</div>
             <div class="home-card-value" id="home-stock-klse">RM 0</div>
           </div>
         </div>
-        <div class="home-card" data-cat="stock-hk">
+        <div class="home-card" data-cat="stock-hk" draggable="true">
           <div class="home-card-dot" style="background:#f97316"></div>
           <div class="home-card-info">
             <div class="home-card-label">Stock HK</div>
@@ -181,13 +182,13 @@
         <div class="tabs" id="category-tabs">
           <button class="tab active" data-filter="all">All</button>
           <button class="tab" data-filter="fund">Fund</button>
-          <button class="tab" data-filter="stock">Stock</button>
+          <button class="tab" data-filter="stock">Stock US</button>
+          <button class="tab" data-filter="stock-klse">Stock KL</button>
+          <button class="tab" data-filter="stock-hk">Stock HK</button>
           <button class="tab" data-filter="crypto">Crypto</button>
           <button class="tab" data-filter="ut">Unit Trust</button>
           <button class="tab" data-filter="gold">Gold</button>
           <button class="tab" data-filter="retirement">Retirement</button>
-          <button class="tab" data-filter="stock-klse">Stock KLSE</button>
-          <button class="tab" data-filter="stock-hk">Stock HK</button>
         </div>
         <div style="display:flex;gap:.4rem;align-items:center;flex-shrink:0">
           <button class="sort-btn" id="btn-sort" title="Sort">↕ Value</button>
@@ -290,10 +291,10 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
-  <script type="module" src="app.js?v=65"></script>
+  <script type="module" src="app.js?v=75"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=65').catch(console.error);
+      navigator.serviceWorker.register('sw.js?v=75').catch(console.error);
     }
   </script>
 </body>

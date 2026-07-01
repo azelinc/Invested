@@ -327,7 +327,7 @@ let spentExpenses = [];
 let currentSavingTx = [];
 let unsubSavingTx = null;
 let editMode = false;
-const APP_VER = '71'
+const APP_VER = '75'
 
 const CAT_COLORS = {
   fund:'#10b981', stock:'#3b82f6', crypto:'#f59e0b',
@@ -335,11 +335,120 @@ const CAT_COLORS = {
   ut:'#8b5cf6', gold:'#06b6d4', retirement:'#f43f5e', unknown:'#64748b'
 };
 const CAT_LABELS = {
-  fund:'Fund', stock:'Stock', 'stock-klse':'Stock KLSE', 'stock-hk':'Stock HK', crypto:'Crypto',
+  fund:'Fund', stock:'Stock US', 'stock-klse':'Stock KL', 'stock-hk':'Stock HK', crypto:'Crypto',
   ut:'Unit Trust', gold:'Gold', retirement:'Retirement', unknown:'Unknown'
 };
 const SAVING_CATEGORIES = ['fund', 'retirement', 'ut'];
 function isSavingCategory(cat) { return SAVING_CATEGORIES.includes(cat); }
+
+/* ═══════════════ HOME CARD REORDER (DnD + Mobile) ═══════════════ */
+const VALID_CATS = ['fund','stock','stock-klse','stock-hk','crypto','ut','gold','retirement'];
+let reorderMode = false;
+
+function loadCardOrder() {
+  try {
+    const saved = localStorage.getItem('investedCardOrder');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.every(c => VALID_CATS.includes(c)) && parsed.length === VALID_CATS.length)
+        return parsed;
+    }
+  } catch(e) {}
+  return [...VALID_CATS];
+}
+
+function saveCardOrder() {
+  const container = document.getElementById('home-categories');
+  if (!container) return;
+  const cats = [...container.querySelectorAll('.home-card')].map(el => el.dataset.cat);
+  localStorage.setItem('investedCardOrder', JSON.stringify(cats));
+}
+
+function reorderHomeCards() {
+  const container = document.getElementById('home-categories');
+  if (!container) return;
+  const order = loadCardOrder();
+  const cards = {};
+  order.forEach(cat => { const el = container.querySelector(`.home-card[data-cat="${cat}"]`); if (el) cards[cat] = el; });
+  order.forEach(cat => { if (cards[cat]) container.appendChild(cards[cat]); });
+}
+
+// ── Desktop DnD ──
+let dragSrcCat = null;
+function initHomeDnD() {
+  const container = document.getElementById('home-categories');
+  if (!container) return;
+  container.addEventListener('dragstart', e => {
+    const card = e.target.closest('.home-card');
+    if (!card || e.target.closest('.reorder-arrows')) return;
+    dragSrcCat = card.dataset.cat;
+    card.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', dragSrcCat);
+  });
+  container.addEventListener('dragend', e => {
+    const card = e.target.closest('.home-card');
+    if (card) card.classList.remove('dragging');
+    document.querySelectorAll('.home-card.drag-over').forEach(el => el.classList.remove('drag-over'));
+    if (dragSrcCat) saveCardOrder();
+    dragSrcCat = null;
+  });
+  container.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; });
+  container.addEventListener('dragenter', e => {
+    const card = e.target.closest('.home-card');
+    if (!card || card.dataset.cat === dragSrcCat) return;
+    card.classList.add('drag-over');
+  });
+  container.addEventListener('dragleave', e => {
+    const card = e.target.closest('.home-card');
+    if (!card) return;
+    card.classList.remove('drag-over');
+  });
+  container.addEventListener('drop', e => {
+    e.preventDefault();
+    const target = e.target.closest('.home-card');
+    if (!target || !dragSrcCat || target.dataset.cat === dragSrcCat) return;
+    target.classList.remove('drag-over');
+    const srcCard = container.querySelector(`.home-card[data-cat="${dragSrcCat}"]`);
+    if (!srcCard) return;
+    container.insertBefore(srcCard, target);
+  });
+}
+
+// ── Mobile Reorder Mode ──
+function toggleReorderMode() {
+  const btn = document.getElementById('btn-reorder');
+  reorderMode = !reorderMode;
+  const container = document.getElementById('home-categories');
+  if (!container) return;
+
+  container.querySelectorAll('.home-card').forEach(card => {
+    card.classList.toggle('reorder-mode', reorderMode);
+    if (reorderMode && !card.querySelector('.reorder-arrows')) {
+      const a = document.createElement('div');
+      a.className = 'reorder-arrows';
+      a.innerHTML = '<button class="reorder-up" data-dir="up">▲</button><button class="reorder-down" data-dir="down">▼</button>';
+      card.appendChild(a);
+    }
+  });
+  if (btn) { btn.textContent = reorderMode ? 'Done' : '↕'; btn.classList.toggle('active', reorderMode); }
+}
+document.addEventListener('click', e => {
+  const dirBtn = e.target.closest('.reorder-up, .reorder-down');
+  if (!dirBtn) return;
+  e.stopPropagation();
+  const card = dirBtn.closest('.home-card');
+  const container = document.getElementById('home-categories');
+  if (!card || !container) return;
+  const cards = [...container.querySelectorAll('.home-card')];
+  const idx = cards.indexOf(card);
+  const dir = dirBtn.classList.contains('reorder-up') ? -1 : 1;
+  const targetIdx = idx + dir;
+  if (targetIdx < 0 || targetIdx >= cards.length) return;
+  if (dir === -1) container.insertBefore(card, cards[targetIdx]);
+  else container.insertBefore(cards[targetIdx], card);
+  saveCardOrder();
+});
 
 function attachListeners(uid) {
   currentUid = uid;
@@ -476,7 +585,7 @@ async function renderHome() {
 
   document.getElementById('home-net-worth').textContent = fmt(displayTotal);
   document.getElementById('home-asset-count').textContent = `${currentAssets.length} assets`;
-  document.getElementById('home-rate').textContent = `BNM ${_usdMyr}`;
+  document.getElementById('home-rate').textContent = `USD/MYR ${_usdMyr}  HKD/MYR ${_hkdMyr.toFixed(4)}`;
   document.getElementById('home-last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString('en-MY', {hour:'2-digit', minute:'2-digit'});
 
   // Show excluded amount if any
@@ -491,14 +600,22 @@ async function renderHome() {
   const grandTotal = currency === 'usd' ? (totalMyr + excludedMyr) / _usdMyr : totalMyr + excludedMyr;
   excludedEl.textContent = excludedMyr ? `${fmt(grandTotal)} total (incl. illiquid)` : '';
 
-  // Category totals (in native currency)
-  const cats = ['fund','stock','stock-hk','stock-klse','crypto','ut','gold','retirement'];
-  for (const cat of cats) {
+  // Category totals (in MYR after conversion)
+  for (const cat of VALID_CATS) {
     const items = allAssets.filter(a => a.category === cat);
     const catTotal = items.reduce((s, a) => s + (a.value || 0), 0);
     const el = document.getElementById(`home-${cat}`);
-    if (el) el.textContent = fmtNative(catTotal, cat);
+    if (el) {
+      let myrVal = catTotal;
+      const nc = getNativeCurrency(cat);
+      if (nc === 'USD') myrVal = catTotal * _usdMyr;
+      if (nc === 'HKD') myrVal = catTotal * _hkdMyr;
+      el.textContent = `RM ${new Intl.NumberFormat('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(myrVal)}`;
+    }
   }
+
+  // Reorder cards to user's saved layout
+  reorderHomeCards();
 
   // Capture daily snapshot — then render chart
   await captureSnapshot(allAssets);
@@ -684,7 +801,7 @@ async function sharePortfolio() {
   if (excludedMyr) text += `Excluded (illiquid): ${fmt(currency === 'usd' ? excludedMyr / _usdMyr : excludedMyr)}\n`;
   text += `${allAssets.length} Assets\n\n`;
 
-  const cats = ['fund','stock','stock-hk','stock-klse','crypto','ut','gold','retirement'];
+  const cats = ['fund','stock','stock-klse','stock-hk','crypto','ut','gold','retirement'];
   for (const cat of cats) {
     const items = allAssets.filter(a => a.category === cat).sort((a, b) => (b.value || 0) - (a.value || 0));
     if (!items.length) continue;
@@ -752,7 +869,7 @@ function renderAssets() {
 
   let html = '';
   for (const cat of Object.keys(byCat).sort((a,b) => {
-    const order = ['fund','stock','stock-hk','stock-klse','crypto','ut','gold','retirement','unknown'];
+    const order = ['fund','stock','stock-klse','stock-hk','crypto','ut','gold','retirement','unknown'];
     return order.indexOf(a) - order.indexOf(b);
   })) {
     const items = sortAssets(byCat[cat]);
@@ -1885,6 +2002,8 @@ onAuthStateChanged(auth, user => {
     els.authError.textContent = '';
     attachListeners(user.uid);
     switchTab('home');
+    initHomeDnD();
+    document.getElementById('btn-reorder').onclick = toggleReorderMode;
     // Background rate fetch — updates _usdMyr silently, Firestore re-renders
     getMyrRate().then(() => {
       // Re-render current view with live rate

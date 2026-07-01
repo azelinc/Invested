@@ -384,6 +384,29 @@ button.text-btn {
   transition: background .15s;
 }
 .home-card:hover { background: #27354d; }
+.home-card[draggable="true"] { cursor: grab; user-select: none; }
+.home-card[draggable="true"]::before {
+  content: '⠿'; position: absolute; left: .35rem; top: 50%; transform: translateY(-50%);
+  font-size: .55rem; color: var(--muted); opacity: 0.35; pointer-events: none;
+}
+.home-card[draggable="true"] { padding-left: 1.5rem; }
+.home-card[draggable="true"]:active { cursor: grabbing; }
+.home-card.dragging { opacity: 0.4; transform: scale(0.96); }
+.home-card.drag-over { border: 2px dashed #6366f1; }
+.home-card.reorder-mode { padding-right: 3rem; }
+.reorder-arrows {
+  position: absolute; right: .5rem; top: 50%; transform: translateY(-50%);
+  display: flex; flex-direction: column; gap: .15rem;
+}
+.reorder-arrows button {
+  background: var(--card-hover); border: 1px solid rgba(255,255,255,0.1);
+  color: var(--muted); font-size: .55rem; padding: .1rem .3rem;
+  border-radius: 4px; cursor: pointer; line-height: 1;
+}
+.reorder-arrows button:active { background: #3b82f6; color: #fff; }
+#btn-reorder { cursor: pointer; background: transparent; border: 1px solid var(--muted); color: var(--muted); font-size: .65rem; padding: .1rem .35rem; border-radius: 8px; transition: all .15s; }
+#btn-reorder.active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+.home-card { position: relative; }
 .home-card-dot {
   width: 8px; height: 8px;
   border-radius: 50%;
