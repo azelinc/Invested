@@ -463,7 +463,7 @@ function attachListeners(uid) {
       migratedClosed = true;
       for (const snapDoc of snap.docs) {
         const data = snapDoc.data();
-        if (data.excluded === true && (data.qty || 0) === 0) {
+        if (data.excluded === true && (data.qty || 0) === 0 && data.category !== 'retirement') {
           updateDoc(doc(db, `users/${uid}/assets`, snapDoc.id), { closed: true, excluded: false });
           const idx = currentAssets.findIndex(a => a.id === snapDoc.id);
           if (idx >= 0) { currentAssets[idx].closed = true; currentAssets[idx].excluded = false; }
@@ -841,7 +841,6 @@ function renderAssets() {
   const allAssets = currentAssets.map(a => a.category === 'physical' ? { ...a, category: 'gold' } : a);
   const assets = currentFilter === 'all' ? allAssets 
     : currentFilter === 'closed' ? allAssets.filter(a => a.category !== 'retirement' && (a.closed || (a.excluded && (a.qty || 0) === 0)))
-    : currentFilter === 'excluded' ? allAssets.filter(a => a.excluded)
     : allAssets.filter(a => a.category === currentFilter && !a.excluded);
   const includedAssets = allAssets.filter(a => !a.excluded);
   // Total in MYR base for consistent net worth (converted by toggle)
@@ -910,7 +909,7 @@ function renderAssets() {
           <div class="asset-left">
             <div class="asset-dot" style="background:${CAT_COLORS[a.category]||'#64748b'}"></div>
             <div class="asset-info">
-              <div class="asset-name">${a.name}${a.closed ? '<span class="excluded-badge">Closed</span>' : ''}${a.excluded ? '<span class="excluded-badge">Excluded</span>' : ''}</div>
+              <div class="asset-name">${a.name}${a.closed ? '<span class="excluded-badge">Closed</span>' : ''}</div>
               <div class="asset-meta">
                 ${a.ticker ? `<span class="ticker">${a.ticker}</span>` : ''}
                 ${priceTag}
