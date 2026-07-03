@@ -6,7 +6,7 @@ import {
 import {
   getFirestore, collection, doc,
   onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, query, getDocs,
-  getDoc, setDoc, orderBy, limit
+  getDoc, setDoc, orderBy, limit, deleteField
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 import {
   getDatabase, ref as dbRef, onValue
@@ -457,11 +457,15 @@ function attachListeners(uid) {
   const q = query(collection(db, `users/${uid}/assets`));
   unsubAssets = onSnapshot(q, snap => {
     currentAssets = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    // One-time fix: restore excluded on retirement assets (v81 migration removed it)
+    // One-time fix: restore excluded on retirement (v81 migration removed it)
     for (const snapDoc of snap.docs) {
       const d = snapDoc.data();
       if (d.category === 'retirement' && d.excluded !== true) {
         updateDoc(doc(db, `users/${uid}/assets`, snapDoc.id), { excluded: true });
+      }
+      // Clear stale closed field from v81 migration — user hasn't toggled it
+      if (d.closed !== undefined && !snapDoc.metadata.hasPendingWrites) {
+        updateDoc(doc(db, `users/${uid}/assets`, snapDoc.id), { closed: deleteField() });
       }
     }
     seedIfEmpty(uid);
@@ -907,6 +911,7 @@ function renderAssets() {
                 ${a.ticker ? `<span class="ticker">${a.ticker}</span>` : ''}
                 ${priceTag}
                 <span class="asset-qty">${fmtQty(a.qty)}</span>
+                <span class="closed-toggle" data-id="${a.id}" style="cursor:pointer;font-size:.62rem;color:${a.closed ? '#f43f5e' : 'var(--muted)'};border:1px solid ${a.closed ? '#f43f5e' : 'var(--muted)'};border-radius:3px;padding:.05rem .3rem;margin-left:.3rem">${a.closed ? '● Closed' : '○ Closed'}</span>
               </div>
             </div>
           </div>
@@ -926,6 +931,17 @@ function renderAssets() {
 
   grid.querySelectorAll('.btn-sm.edit').forEach(b => b.onclick = () => editAsset(b.dataset.id));
   grid.querySelectorAll('.btn-sm.delete').forEach(b => b.onclick = () => { b.stopPropagation(); deleteAsset(b.dataset.id); });
+  // Toggle closed status directly on card
+  grid.querySelectorAll('.closed-toggle').forEach(el => {
+    el.onclick = async e => {
+      e.stopPropagation();
+      const id = el.dataset.id;
+      const asset = currentAssets.find(a => a.id === id);
+      if (!asset) return;
+      const next = !asset.closed;
+      await updateDoc(doc(db, `users/${currentUid}/assets`, id), { closed: next || deleteField() });
+    };
+  });
   // Tap asset card → detail view (skip when in edit mode)
   grid.querySelectorAll('.asset-card').forEach(c => {
     c.style.cursor = editMode ? 'default' : 'pointer';
