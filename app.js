@@ -276,6 +276,7 @@ function switchTab(tab) {
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === `tab-${tab}`));
   if (tab === 'home') renderHome();
   if (tab === 'asset') renderAssets();
+  if (tab === 'trading') renderTrading();
   if (tab === 'spent') renderSpent();
   // Push history on every nav so hardware back stays inside app
   history.pushState({ tab }, '', window.location.href);
@@ -321,13 +322,15 @@ let unsubSpent = null;
 let unsubTrades = null;
 let currentAssets = [];
 let currentTrades = [];
+let currentOptions = [];
 let currentFilter = 'all';
 let currentUid = null;
 let spentExpenses = [];
 let currentSavingTx = [];
 let unsubSavingTx = null;
+let unsubOptions = null;
 let editMode = false, showClosed = false;
-const APP_VER = '80'
+const APP_VER = '81'
 
 const CAT_COLORS = {
   fund:'#10b981', stock:'#3b82f6', crypto:'#f59e0b',
@@ -501,6 +504,13 @@ function attachListeners(uid) {
     currentSavingTx = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     syncAllAssetsFromSavingTx();
   }, console.error);
+
+  // Firestore options positions
+  const oq = query(collection(db, `users/${uid}/options`));
+  unsubOptions = onSnapshot(oq, snap => {
+    currentOptions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (currentTab === 'trading') renderTrading();
+  }, console.error);
 }
 
 function detachListeners() {
@@ -508,8 +518,10 @@ function detachListeners() {
   if (unsubSpent) { unsubSpent(); unsubSpent = null; }
   if (unsubTrades) { unsubTrades(); unsubTrades = null; }
   if (unsubSavingTx) { unsubSavingTx(); unsubSavingTx = null; }
+  if (unsubOptions) { unsubOptions(); unsubOptions = null; }
   currentAssets = [];
   currentTrades = [];
+  currentOptions = [];
   currentSavingTx = [];
   spentExpenses = [];
   currentUid = null;
@@ -2035,6 +2047,221 @@ async function editAsset(id) {
 
 async function deleteAsset(id) {
   await deleteDoc(doc(db, `users/${currentUid}/assets`, id));
+}
+
+/* ═══════════════════ TRADING TAB ═══════════════════ */
+function renderTrading() {
+  const allAssets = currentAssets.map(a => a.category === 'physical' ? { ...a, category: 'gold' } : a);
+
+  // ── Compute realized & unrealized P/L from trades ──
+  const byTicker = {};
+  let totalRealizedMyr = 0;
+  let totalSells = 0, winningSells = 0;
+
+  for (const t of currentTrades) {
+    const ticker = (t.ticker || '').toUpperCase();
+    if (!ticker) continue;
+    if (!byTicker[ticker]) byTicker[ticker] = { qty:0, cost:0, realizedMyr:0, sells:[] };
+
+    const b = byTicker[ticker];
+    const nativeCur = getNativeCurrency(findCategory(ticker));
+    const rate = nativeCur === 'USD' ? _usdMyr : (nativeCur === 'HKD' ? _hkdMyr : 1);
+    const total = (t.qty || 0) * (t.price || 0) * rate + (t.fees || 0) * rate;
+
+    if (t.type === 'buy') {
+      b.qty += (t.qty || 0);
+      b.cost += total;
+    } else {
+      const avgCost = b.qty > 0 ? b.cost / b.qty : 0;
+      const proceeds = (t.qty || 0) * (t.price || 0) * rate - (t.fees || 0) * rate;
+      const realized = proceeds - avgCost * (t.qty || 0);
+      b.realizedMyr += realized;
+      b.qty -= (t.qty || 0);
+      b.cost -= avgCost * (t.qty || 0);
+      totalRealizedMyr += realized;
+      totalSells++;
+      if (realized > 0) winningSells++;
+      b.sells.push({ date: t.date, realized, proceeds, qty: t.qty, price: t.price });
+    }
+  }
+
+  // ── Unrealized P/L ──
+  let totalUnrealizedMyr = 0;
+  for (const a of allAssets) {
+    if (a.excluded) continue;
+    const pl = getAssetPL(a);
+    if (pl.hasTrades) {
+      const rate = getNativeCurrency(a.category) === 'USD' ? _usdMyr : (getNativeCurrency(a.category) === 'HKD' ? _hkdMyr : 1);
+      totalUnrealizedMyr += pl.pl * rate;
+    }
+  }
+
+  // ── YTD & Monthly ──
+  const now = new Date();
+  const ytdStart = new Date(now.getFullYear(), 0, 1);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  let ytdRealized = 0, monthRealized = 0;
+  const monthlyData = {};
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  for (const [ticker, b] of Object.entries(byTicker)) {
+    for (const s of b.sells) {
+      const d = new Date(s.date);
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      if (!monthlyData[key]) monthlyData[key] = { realized: 0, sells: 0, wins: 0 };
+      monthlyData[key].realized += s.realized;
+      monthlyData[key].sells++;
+      if (s.realized > 0) monthlyData[key].wins++;
+
+      if (d >= ytdStart) ytdRealized += s.realized;
+      if (d >= monthStart) monthRealized += s.realized;
+    }
+  }
+
+  // ── Win rate ──
+  const winRate = totalSells > 0 ? (winningSells / totalSells * 100) : 0;
+
+  // ── Render ──
+  const fmtMyr = v => new Intl.NumberFormat('en-MY', { style:'currency', currency:'MYR', maximumFractionDigits:0 }).format(v || 0);
+  const fmtUsd = v => '$' + new Intl.NumberFormat('en-MY', { maximumFractionDigits:0 }).format(Math.abs(v || 0));
+  const plClass = v => v >= 0 ? 'pf-up' : 'pf-down';
+  const plSign = v => v >= 0 ? '+' : '';
+
+  // Summary row
+  const totalPL = totalRealizedMyr + totalUnrealizedMyr;
+  document.getElementById('trading-total-pl').innerHTML = `<span class="${plClass(totalPL)}">${plSign(totalPL)}${fmtMyr(totalPL)}</span>`;
+
+  // Performance metric cards
+  document.getElementById('trading-realized').innerHTML = `<span class="${plClass(totalRealizedMyr)}">${plSign(totalRealizedMyr)}${fmtMyr(totalRealizedMyr)}</span>`;
+  document.getElementById('trading-unrealized').innerHTML = `<span class="${plClass(totalUnrealizedMyr)}">${plSign(totalUnrealizedMyr)}${fmtMyr(totalUnrealizedMyr)}</span>`;
+  document.getElementById('trading-total-pl-val').innerHTML = `<span class="${plClass(totalPL)}">${plSign(totalPL)}${fmtMyr(totalPL)}</span>`;
+  document.getElementById('trading-ytd').innerHTML = `<span class="${plClass(ytdRealized)}">${plSign(ytdRealized)}${fmtMyr(ytdRealized)}</span>`;
+  document.getElementById('trading-month').innerHTML = `<span class="${plClass(monthRealized)}">${plSign(monthRealized)}${fmtMyr(monthRealized)}</span>`;
+  document.getElementById('trading-winrate').textContent = totalSells > 0 ? `${winRate.toFixed(0)}% (${winningSells}/${totalSells})` : '—';
+
+  // Options section
+  renderOptionsSection();
+
+  // Monthly breakdown
+  const sortedMonths = Object.keys(monthlyData).sort();
+  let monthHtml = '<div class="trading-table">';
+  monthHtml += '<div class="trading-tr trading-th"><span>Month</span><span>Trades</span><span>Realized P/L</span><span>Win Rate</span></div>';
+  for (const key of sortedMonths) {
+    const m = monthlyData[key];
+    const [y, mo] = key.split('-');
+    const label = `${monthNames[parseInt(mo)-1]} ${y}`;
+    const mWinRate = m.sells > 0 ? (m.wins / m.sells * 100).toFixed(0) : '—';
+    monthHtml += `<div class="trading-tr">
+      <span>${label}</span>
+      <span>${m.sells}</span>
+      <span class="${plClass(m.realized)}">${plSign(m.realized)}${fmtMyr(m.realized)}</span>
+      <span>${mWinRate}%</span>
+    </div>`;
+  }
+  monthHtml += '</div>';
+  if (!sortedMonths.length) monthHtml = '<div class="empty">No trades recorded yet.</div>';
+  document.getElementById('trading-monthly-breakdown').innerHTML = monthHtml;
+
+  // Per-ticker breakdown
+  const sortedTickers = Object.keys(byTicker).sort();
+  let tickerHtml = '<div class="trading-table">';
+  tickerHtml += '<div class="trading-tr trading-th"><span>Asset</span><span>Sells</span><span>Realized</span><span>Holding</span><span>Unrealized</span></div>';
+  for (const ticker of sortedTickers) {
+    const b = byTicker[ticker];
+    // Find matching asset for unrealized
+    const asset = allAssets.find(a => (a.ticker || '').toUpperCase() === ticker);
+    let unrealized = 0, holdingQty = 0;
+    if (asset && !asset.excluded) {
+      const pl = getAssetPL(asset);
+      if (pl.hasTrades) {
+        const rate = getNativeCurrency(asset.category) === 'USD' ? _usdMyr : (getNativeCurrency(asset.category) === 'HKD' ? _hkdMyr : 1);
+        unrealized = pl.pl * rate;
+        holdingQty = pl.curValue > 0 ? pl.curValue / (asset.price || 1) : 0;
+      }
+    }
+    const name = asset ? asset.name : ticker;
+    tickerHtml += `<div class="trading-tr">
+      <span><strong>${name}</strong></span>
+      <span>${b.sells.length}</span>
+      <span class="${plClass(b.realizedMyr)}">${plSign(b.realizedMyr)}${fmtMyr(b.realizedMyr)}</span>
+      <span>${holdingQty > 0 ? fmtQty(holdingQty) : '—'}</span>
+      <span class="${plClass(unrealized)}">${plSign(unrealized)}${fmtMyr(unrealized)}</span>
+    </div>`;
+  }
+  tickerHtml += '</div>';
+  if (!sortedTickers.length) tickerHtml = '<div class="empty">No trades recorded yet. Add a trade in the Asset detail view.</div>';
+  document.getElementById('trading-ticker-breakdown').innerHTML = tickerHtml;
+
+  document.getElementById('trading-last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString('en-MY', {hour:'2-digit', minute:'2-digit'});
+}
+
+function findCategory(ticker) {
+  const a = currentAssets.find(x => (x.ticker || '').toUpperCase() === ticker);
+  return a ? a.category : 'stock';
+}
+
+function renderOptionsSection() {
+  const container = document.getElementById('trading-options');
+  if (!currentOptions.length) {
+    container.innerHTML = '<div class="empty">No active options positions. <button class="text-btn" id="btn-sync-options">⟳ Sync from Moomoo</button></div>';
+    const btn = document.getElementById('btn-sync-options');
+    if (btn) btn.onclick = syncOptionsFromMoomoo;
+    return;
+  }
+
+  let html = '<div class="trading-table">';
+  html += '<div class="trading-tr trading-th"><span>Position</span><span>Strike</span><span>Expiry</span><span>Credit</span><span>P&L</span></div>';
+
+  let totalCredit = 0, totalUnrealizedUsd = 0;
+  for (const o of currentOptions) {
+    if (o.status === 'closed') continue;
+    const credit = (o.totalCredit || 0) + (o.premiumReceived || 0);
+    totalCredit += credit;
+    const unrealized = o.unrealizedPL !== undefined ? o.unrealizedPL : (o.currentValue !== undefined ? credit - o.currentValue : 0);
+    totalUnrealizedUsd += unrealized;
+    const label = o.ticker || o.name || '—';
+    const strike = o.shortStrike ? `$${o.shortStrike}/${o.longStrike ? '$'+o.longStrike : '—'}` : (o.strike ? `$${o.strike}` : '—');
+    const expiry = o.expiry || '—';
+    const plStr = unrealized >= 0 ? `+$${Math.abs(unrealized).toFixed(0)} 🟢` : `-$${Math.abs(unrealized).toFixed(0)} 🔴`;
+    html += `<div class="trading-tr">
+      <span><strong>${label}</strong></span>
+      <span>${strike}</span>
+      <span style="font-size:.75rem">${expiry}</span>
+      <span>$${credit.toFixed(0)}</span>
+      <span class="${unrealized >= 0 ? 'pf-up' : 'pf-down'}">${plStr}</span>
+    </div>`;
+  }
+
+  html += `<div class="trading-tr trading-total">
+    <span><strong>Total</strong></span>
+    <span></span>
+    <span></span>
+    <span>$${totalCredit.toFixed(0)}</span>
+    <span class="${totalUnrealizedUsd >= 0 ? 'pf-up' : 'pf-down'}">${totalUnrealizedUsd >= 0 ? '+' : ''}$${totalUnrealizedUsd.toFixed(0)} ${totalUnrealizedUsd >= 0 ? '🟢' : '🔴'}</span>
+  </div>`;
+  html += '</div>';
+
+  html += '<div style="margin-top:.5rem"><button class="text-btn" id="btn-sync-options">⟳ Sync from Moomoo</button></div>';
+  container.innerHTML = html;
+
+  const btn = document.getElementById('btn-sync-options');
+  if (btn) btn.onclick = syncOptionsFromMoomoo;
+}
+
+async function syncOptionsFromMoomoo() {
+  showToast('⟳ Syncing options from Moomoo...');
+  try {
+    const resp = await fetch('/sync-options', { method: 'POST' });
+    if (resp.ok) {
+      showToast('✅ Options synced');
+      // Firestore listener will trigger re-render
+    } else {
+      showToast('❌ Sync failed: ' + (await resp.text()).slice(0, 50));
+    }
+  } catch (e) {
+    showToast('❌ Sync unavailable (backend not configured)');
+  }
 }
 
 /* ═══════════════════ TOAST ═══════════════════ */
