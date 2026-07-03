@@ -327,7 +327,7 @@ let spentExpenses = [];
 let currentSavingTx = [];
 let unsubSavingTx = null;
 let editMode = false;
-const APP_VER = '78'
+const APP_VER = '81'
 
 const CAT_COLORS = {
   fund:'#10b981', stock:'#3b82f6', crypto:'#f59e0b',
@@ -455,8 +455,21 @@ function attachListeners(uid) {
 
   // Firestore assets
   const q = query(collection(db, `users/${uid}/assets`));
+  let migratedClosed = false;
   unsubAssets = onSnapshot(q, snap => {
     currentAssets = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    // One-time migration: old excluded+qty=0 → closed flag
+    if (!migratedClosed) {
+      migratedClosed = true;
+      for (const snapDoc of snap.docs) {
+        const data = snapDoc.data();
+        if (data.excluded === true && (data.qty || 0) === 0) {
+          updateDoc(doc(db, `users/${uid}/assets`, snapDoc.id), { closed: true, excluded: false });
+          const idx = currentAssets.findIndex(a => a.id === snapDoc.id);
+          if (idx >= 0) { currentAssets[idx].closed = true; currentAssets[idx].excluded = false; }
+        }
+      }
+    }
     seedIfEmpty(uid);
     if (currentTab === 'home') renderHome();
     if (currentTab === 'asset') renderAssets();
@@ -827,7 +840,8 @@ function renderAssets() {
   const grid = document.getElementById('assets-grid');
   const allAssets = currentAssets.map(a => a.category === 'physical' ? { ...a, category: 'gold' } : a);
   const assets = currentFilter === 'all' ? allAssets 
-    : currentFilter === 'closed' ? allAssets.filter(a => a.excluded && (a.qty || 0) === 0)
+    : currentFilter === 'closed' ? allAssets.filter(a => a.closed || (a.excluded && (a.qty || 0) === 0))
+    : currentFilter === 'excluded' ? allAssets.filter(a => a.excluded)
     : allAssets.filter(a => a.category === currentFilter && !a.excluded);
   const includedAssets = allAssets.filter(a => !a.excluded);
   // Total in MYR base for consistent net worth (converted by toggle)
@@ -892,11 +906,11 @@ function renderAssets() {
         ? `<div class="asset-pl ${pl.pl >= 0 ? 'pf-up' : 'pf-down'}" style="font-size:.62rem;display:${editMode ? 'none' : 'block'}">${pl.pl >= 0 ? '+' : ''}${fmtNative(Math.abs(pl.pl), a.category)} (${pl.pl >= 0 ? '+' : ''}${pl.pct.toFixed(1)}%)</div>`
         : '';
       html += `
-        <div class="asset-card${a.excluded ? ' excluded' : ''}" data-id="${a.id}">
+        <div class="asset-card${a.excluded ? ' excluded' : ''}${a.closed ? ' closed' : ''}" data-id="${a.id}">
           <div class="asset-left">
             <div class="asset-dot" style="background:${CAT_COLORS[a.category]||'#64748b'}"></div>
             <div class="asset-info">
-              <div class="asset-name">${a.name}${a.excluded ? '<span class="excluded-badge">Closed</span>' : ''}</div>
+              <div class="asset-name">${a.name}${a.closed ? '<span class="excluded-badge">Closed</span>' : ''}${a.excluded ? '<span class="excluded-badge">Excluded</span>' : ''}</div>
               <div class="asset-meta">
                 ${a.ticker ? `<span class="ticker">${a.ticker}</span>` : ''}
                 ${priceTag}
@@ -1259,7 +1273,7 @@ function renderAssetDetail(ticker) {
     <!-- Asset header -->
     <section class="detail-header card">
       <div class="detail-header-left">
-        <div class="detail-name">${asset.name}${qty === 0 ? ' <span class="excluded-badge">Closed</span>' : ''}</div>
+        <div class="detail-name">${asset.name}${asset.closed ? ' <span class="excluded-badge">Closed</span>' : ''}</div>
         <div class="detail-ticker">${ticker}</div>
         <div class="detail-meta">
           <span class="pill">${CAT_LABELS[asset.category] || asset.category}</span>
@@ -1707,11 +1721,11 @@ async function syncAssetFromTrades(ticker) {
   if (!asset) return;
   const qty = Math.max(0, netQty);
   const value = qty * (asset.price || 0);
-  const wasExcluded = asset.excluded === true;
-  const shouldExclude = netQty <= 0;
+  const wasClosed = asset.closed === true;
+  const shouldClose = netQty <= 0;
   const updates = { qty, value };
-  if (shouldExclude !== wasExcluded) {
-    updates.excluded = shouldExclude;
+  if (shouldClose !== wasClosed) {
+    updates.closed = shouldClose;
   }
   await updateDoc(doc(db, `users/${currentUid}/assets`, asset.id), updates);
 }
