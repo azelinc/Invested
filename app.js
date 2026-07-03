@@ -826,7 +826,9 @@ async function sharePortfolio() {
 function renderAssets() {
   const grid = document.getElementById('assets-grid');
   const allAssets = currentAssets.map(a => a.category === 'physical' ? { ...a, category: 'gold' } : a);
-  const assets = currentFilter === 'all' ? allAssets : allAssets.filter(a => a.category === currentFilter);
+  const assets = currentFilter === 'all' ? allAssets 
+    : currentFilter === 'closed' ? allAssets.filter(a => a.excluded && (a.qty || 0) === 0)
+    : allAssets.filter(a => a.category === currentFilter && !a.excluded);
   const includedAssets = allAssets.filter(a => !a.excluded);
   // Total in MYR base for consistent net worth (converted by toggle)
   const totalMyr = includedAssets.reduce((s, a) => {
@@ -894,7 +896,7 @@ function renderAssets() {
           <div class="asset-left">
             <div class="asset-dot" style="background:${CAT_COLORS[a.category]||'#64748b'}"></div>
             <div class="asset-info">
-              <div class="asset-name">${a.name}${a.excluded ? '<span class="excluded-badge">(Excluded)</span>' : ''}</div>
+              <div class="asset-name">${a.name}${a.excluded ? '<span class="excluded-badge">Closed</span>' : ''}</div>
               <div class="asset-meta">
                 ${a.ticker ? `<span class="ticker">${a.ticker}</span>` : ''}
                 ${priceTag}
@@ -1257,7 +1259,7 @@ function renderAssetDetail(ticker) {
     <!-- Asset header -->
     <section class="detail-header card">
       <div class="detail-header-left">
-        <div class="detail-name">${asset.name}</div>
+        <div class="detail-name">${asset.name}${qty === 0 ? ' <span class="excluded-badge">Closed</span>' : ''}</div>
         <div class="detail-ticker">${ticker}</div>
         <div class="detail-meta">
           <span class="pill">${CAT_LABELS[asset.category] || asset.category}</span>
@@ -1705,7 +1707,13 @@ async function syncAssetFromTrades(ticker) {
   if (!asset) return;
   const qty = Math.max(0, netQty);
   const value = qty * (asset.price || 0);
-  await updateDoc(doc(db, `users/${currentUid}/assets`, asset.id), { qty, value });
+  const wasExcluded = asset.excluded === true;
+  const shouldExclude = netQty <= 0;
+  const updates = { qty, value };
+  if (shouldExclude !== wasExcluded) {
+    updates.excluded = shouldExclude;
+  }
+  await updateDoc(doc(db, `users/${currentUid}/assets`, asset.id), updates);
 }
 
 /* ── Sync all asset qties from trades ── */
@@ -1995,6 +2003,15 @@ function showToast(msg) {
 
 /* ═══════════════════ AUTH STATE ═══════════════════ */
 onAuthStateChanged(auth, user => {
+  // Version mismatch prompt — catches stale SW cache
+  (function() {
+    const cached = localStorage.getItem('invested_ver');
+    if (cached && cached !== APP_VER) {
+      showToast('📦 v' + APP_VER + ' — refresh to update');
+    }
+    localStorage.setItem('invested_ver', APP_VER);
+  })();
+
   if (user) {
     currentUid = user.uid;
     els.authSection.style.display = 'none';
