@@ -327,7 +327,7 @@ let spentExpenses = [];
 let currentSavingTx = [];
 let unsubSavingTx = null;
 let editMode = false;
-const APP_VER = '75'
+const APP_VER = '77'
 
 const CAT_COLORS = {
   fund:'#10b981', stock:'#3b82f6', crypto:'#f59e0b',
@@ -1266,7 +1266,7 @@ function renderAssetDetail(ticker) {
       </div>
       <div class="detail-header-right">
         <div class="detail-cur-value">${fmtValue(asset.value || 0, asset.category)}</div>
-        <div class="detail-cur-price">${fmtValue(curPrice, asset.category)} / ${unitLabel}</div>
+        <div class="detail-cur-price">${fmtNative(curPrice, asset.category)} / ${unitLabel}</div>
       </div>
     </section>
 
@@ -1278,15 +1278,15 @@ function renderAssetDetail(ticker) {
       </div>
       <div class="detail-pl-item">
         <div class="detail-pl-label">Avg Cost</div>
-        <div class="detail-pl-val">${fmtValue(avgCost, asset.category)}</div>
+        <div class="detail-pl-val">${fmtNative(avgCost, asset.category)}</div>
       </div>
       <div class="detail-pl-item">
         <div class="detail-pl-label">Current Price</div>
-        <div class="detail-pl-val">${fmtValue(curPrice, asset.category)}</div>
+        <div class="detail-pl-val">${fmtNative(curPrice, asset.category)}</div>
       </div>
       <div class="detail-pl-item">
         <div class="detail-pl-label">Cost Basis</div>
-        <div class="detail-pl-val">${fmtValue(totalCost, asset.category)}</div>
+        <div class="detail-pl-val">${fmtNative(totalCost, asset.category)}</div>
       </div>
       <div class="detail-pl-item">
         <div class="detail-pl-label">Current Value</div>
@@ -1318,8 +1318,11 @@ function renderAssetDetail(ticker) {
     html += '<div class="detail-trade-list">';
     for (const t of displayTrades) {
       const isBuy = t.type === 'buy';
-      const displayPrice = t.currency === 'USD' ? t.price || 0 : conv(t.price || 0);
-      const total = (t.qty || 0) * (t.currency === 'USD' ? t.price || 0 : (t.price || 0));
+      function fmtPrice(v) {
+        if (t.currency === 'USD') return '$' + (v || 0).toFixed(2);
+        if (t.currency === 'HKD') return 'HK$' + (v || 0).toFixed(2);
+        return 'RM ' + (v || 0).toFixed(2);
+      }
       html += `
         <div class="detail-trade-item">
           <div class="detail-trade-left">
@@ -1327,11 +1330,11 @@ function renderAssetDetail(ticker) {
             <span class="detail-trade-date">${t.date || ''}</span>
           </div>
           <div class="detail-trade-mid">
-            <span>${fmtQty(t.qty || 0)} @ ${t.currency === 'USD' ? '$' + (t.price || 0).toFixed(2) : fmtNative(t.price || 0, 'stock-klse')}</span>
-            ${t.fees ? `<span class="detail-trade-fees">Fees: ${t.currency === 'USD' ? '$' + (t.fees || 0).toFixed(2) : fmtNative(t.fees || 0, 'stock-klse')}</span>` : ''}
+            <span>${fmtQty(t.qty || 0)} @ ${fmtPrice(t.price)}</span>
+            ${t.fees ? `<span class="detail-trade-fees">Fees: ${fmtPrice(t.fees)}</span>` : ''}
           </div>
           <div class="detail-trade-right">
-            <span class="detail-trade-total">${t.currency === 'USD' ? '$' + ((t.qty || 0) * (t.price || 0)).toFixed(2) : fmtNative((t.qty || 0) * (t.price || 0), 'stock-klse')}</span>
+            <span class="detail-trade-total">${fmtPrice((t.qty || 0) * (t.price || 0))}</span>
             <button class="btn-sm edit-trade" data-id="${t.id}" style="font-size:.6rem;padding:.12rem .28rem;background:#334155;color:#f8fafc;border:none;border-radius:3px;cursor:pointer;line-height:1">✎</button>
             <button class="btn-sm delete detail-del-trade" data-id="${t.id}">×</button>
           </div>
