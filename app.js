@@ -457,6 +457,13 @@ function attachListeners(uid) {
   const q = query(collection(db, `users/${uid}/assets`));
   unsubAssets = onSnapshot(q, snap => {
     currentAssets = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    // One-time fix: restore excluded on retirement assets (v81 migration removed it)
+    for (const snapDoc of snap.docs) {
+      const d = snapDoc.data();
+      if (d.category === 'retirement' && d.excluded !== true) {
+        updateDoc(doc(db, `users/${uid}/assets`, snapDoc.id), { excluded: true });
+      }
+    }
     seedIfEmpty(uid);
     if (currentTab === 'home') renderHome();
     if (currentTab === 'asset') renderAssets();
