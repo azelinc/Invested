@@ -840,7 +840,7 @@ function renderAssets() {
   const grid = document.getElementById('assets-grid');
   const allAssets = currentAssets.map(a => a.category === 'physical' ? { ...a, category: 'gold' } : a);
   const assets = currentFilter === 'all' ? allAssets 
-    : currentFilter === 'closed' ? allAssets.filter(a => a.closed || (a.excluded && (a.qty || 0) === 0))
+    : currentFilter === 'closed' ? allAssets.filter(a => a.category !== 'retirement' && (a.closed || (a.excluded && (a.qty || 0) === 0)))
     : currentFilter === 'excluded' ? allAssets.filter(a => a.excluded)
     : allAssets.filter(a => a.category === currentFilter && !a.excluded);
   const includedAssets = allAssets.filter(a => !a.excluded);
