@@ -327,7 +327,7 @@ let spentExpenses = [];
 let currentSavingTx = [];
 let unsubSavingTx = null;
 let editMode = false;
-const APP_VER = '77'
+const APP_VER = '78'
 
 const CAT_COLORS = {
   fund:'#10b981', stock:'#3b82f6', crypto:'#f59e0b',
@@ -532,10 +532,11 @@ async function seedIfEmpty(uid) {
 
 /* ── Sorting ── */
 function sortAssets(items) {
+  const isClosed = a => a.closed ? 1 : 0;
   if (sortMode === 'alpha') {
-    return [...items].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    return [...items].sort((a, b) => (isClosed(a) - isClosed(b)) || (a.name || '').localeCompare(b.name || ''));
   }
-  return [...items].sort((a, b) => (b.value || 0) - (a.value || 0));
+  return [...items].sort((a, b) => (isClosed(a) - isClosed(b)) || (b.value || 0) - (a.value || 0));
 }
 
 /* ── Unrealised P/L from trades ── */
@@ -890,7 +891,7 @@ function renderAssets() {
         ? `<div class="asset-pl ${pl.pl >= 0 ? 'pf-up' : 'pf-down'}" style="font-size:.62rem;display:${editMode ? 'none' : 'block'}">${pl.pl >= 0 ? '+' : ''}${fmtNative(Math.abs(pl.pl), a.category)} (${pl.pl >= 0 ? '+' : ''}${pl.pct.toFixed(1)}%)</div>`
         : '';
       html += `
-        <div class="asset-card${a.excluded ? ' excluded' : ''}" data-id="${a.id}">
+        <div class="asset-card${a.excluded ? ' excluded' : ''}${a.closed ? ' closed' : ''}" data-id="${a.id}">
           <div class="asset-left">
             <div class="asset-dot" style="background:${CAT_COLORS[a.category]||'#64748b'}"></div>
             <div class="asset-info">
@@ -1836,6 +1837,10 @@ function buildAssetForm(asset, isEdit) {
     <div class="field" style="display:flex;align-items:center;gap:.5rem;margin-top:.3rem">
       <input type="checkbox" id="m-excluded" ${asset?.excluded ? 'checked' : ''}>
       <label for="m-excluded" style="margin:0;font-size:.82rem;color:var(--muted)">Exclude from net-worth calculation (e.g. illiquid)</label>
+    </div>
+    <div class="field" style="display:flex;align-items:center;gap:.5rem;margin-top:.15rem">
+      <input type="checkbox" id="m-closed" ${asset?.closed ? 'checked' : ''}>
+      <label for="m-closed" style="margin:0;font-size:.82rem;color:var(--muted)">Closed position — show dimmed at bottom of list</label>
     </div>`;
 
   return `
@@ -1909,7 +1914,7 @@ document.getElementById('btn-add').onclick = () => {
     }
 
     await addDoc(collection(db, `users/${currentUid}/assets`), {
-      name, ticker, category: cat, qty, price, value, priceSrc, excluded: !!document.getElementById('m-excluded').checked,
+      name, ticker, category: cat, qty, price, value, priceSrc, excluded: !!document.getElementById('m-excluded').checked, closed: !!document.getElementById('m-closed').checked,
       createdAt: serverTimestamp()
     });
     closeModal();
@@ -1966,7 +1971,7 @@ async function editAsset(id) {
     }
 
     await updateDoc(doc(db, `users/${currentUid}/assets`, id), {
-      name, ticker, category: cat, qty, price, value, priceSrc, excluded: !!document.getElementById('m-excluded').checked,
+      name, ticker, category: cat, qty, price, value, priceSrc, excluded: !!document.getElementById('m-excluded').checked, closed: !!document.getElementById('m-closed').checked,
       updatedAt: serverTimestamp()
     });
     closeModal();
