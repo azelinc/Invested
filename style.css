@@ -536,9 +536,6 @@ button.text-btn {
   opacity: .45;
   filter: grayscale(0.85);
 }
-.asset-card.closed {
-  opacity: .7;
-}
 .asset-card .excluded-badge,
 .excluded-badge {
   font-size: .62rem;
