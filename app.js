@@ -326,8 +326,8 @@ let currentUid = null;
 let spentExpenses = [];
 let currentSavingTx = [];
 let unsubSavingTx = null;
-let editMode = false;
-const APP_VER = '79'
+let editMode = false, showClosed = false;
+const APP_VER = '80'
 
 const CAT_COLORS = {
   fund:'#10b981', stock:'#3b82f6', crypto:'#f59e0b',
@@ -463,9 +463,10 @@ function attachListeners(uid) {
       if (d.category === 'retirement' && d.excluded !== true) {
         updateDoc(doc(db, `users/${uid}/assets`, snapDoc.id), { excluded: true });
       }
-      // Clear stale closed field from v81 migration — user hasn't toggled it
-      if (d.closed !== undefined && !snapDoc.metadata.hasPendingWrites) {
-        updateDoc(doc(db, `users/${uid}/assets`, snapDoc.id), { closed: deleteField() });
+      // Ensure assets that reached qty=0 via trades get closed:true for the show/hide toggle
+      // (backfill for any that exist before the auto-close feature was added)
+      if (d.qty !== undefined && d.qty <= 0 && !d.closed && d.category !== 'retirement') {
+        updateDoc(doc(db, `users/${uid}/assets`, snapDoc.id), { closed: true });
       }
     }
     seedIfEmpty(uid);
@@ -542,8 +543,8 @@ async function seedIfEmpty(uid) {
 }
 
 /* ── Sorting ── */
-function sortAssets(items) {
-  const isClosed = a => a.closed ? 1 : 0;
+function sortAssets(items, showClosed) {
+  const isClosed = a => showClosed ? 0 : (a.closed && a.qty <= 0 ? 1 : 0);
   if (sortMode === 'alpha') {
     return [...items].sort((a, b) => (isClosed(a) - isClosed(b)) || (a.name || '').localeCompare(b.name || ''));
   }
@@ -884,46 +885,76 @@ function renderAssets() {
     const order = ['fund','stock','stock-klse','stock-hk','crypto','ut','gold','retirement','unknown'];
     return order.indexOf(a) - order.indexOf(b);
   })) {
-    const items = sortAssets(byCat[cat]);
-    const catTotal = byCat[cat].reduce((s, a) => s + (a.value || 0), 0);
+    const isClosed = c => (c.closed && (c.qty === undefined || c.qty <= 0));
+    const catAssets = sortAssets(byCat[cat], showClosed);
+    const activeItems = catAssets.filter(a => !isClosed(a));
+    const closedItems = showClosed ? byCat[cat].filter(a => isClosed(a)) : [];
+    const catActiveTotal = activeItems.reduce((s, a) => s + (a.value || 0), 0);
     html += `<div class="cat-section">
-      <div class="cat-header">
-        <h3>${CAT_LABELS[cat] || cat}</h3>
-        <span class="cat-total">${fmtNative(catTotal, cat)}</span>
-      </div>
-      <div class="cat-list">`;
+    <div class="cat-header">
+      <h3>${CAT_LABELS[cat] || cat}</h3>
+      <span class="cat-total">${fmtNative(catActiveTotal, cat)}</span>
+    </div>
+    <div class="cat-list">`;
 
-    for (const a of items) {
-      const unitLabel = a.category === 'gold' ? 'gram' : 'unit';
-      const priceLabel = a.price ? `${fmtNative(a.price, a.category)} / ${unitLabel}` : '';
-      const priceTag = a.priceSrc === 'live' ? `<span class="price-tag">${priceLabel}</span>` : '';
-      const pl = getAssetPL(a);
-      const plHtml = pl.hasTrades
-        ? `<div class="asset-pl ${pl.pl >= 0 ? 'pf-up' : 'pf-down'}" style="font-size:.62rem;display:${editMode ? 'none' : 'block'}">${pl.pl >= 0 ? '+' : ''}${fmtNative(Math.abs(pl.pl), a.category)} (${pl.pl >= 0 ? '+' : ''}${pl.pct.toFixed(1)}%)</div>`
-        : '';
-      html += `
-        <div class="asset-card${a.excluded ? ' excluded' : ''}${a.closed ? ' closed' : ''}" data-id="${a.id}">
-          <div class="asset-left">
-            <div class="asset-dot" style="background:${CAT_COLORS[a.category]||'#64748b'}"></div>
-            <div class="asset-info">
-              <div class="asset-name">${a.name}${a.excluded ? '<span class="excluded-badge">(Excluded)</span>' : ''}</div>
-              <div class="asset-meta">
-                ${a.ticker ? `<span class="ticker">${a.ticker}</span>` : ''}
-                ${priceTag}
-                <span class="asset-qty">${fmtQty(a.qty)}</span>
-                <span class="closed-toggle" data-id="${a.id}" style="cursor:pointer;font-size:.62rem;color:${a.closed ? '#f43f5e' : 'var(--muted)'};border:1px solid ${a.closed ? '#f43f5e' : 'var(--muted)'};border-radius:3px;padding:.05rem .3rem;margin-left:.3rem">${a.closed ? '● Closed' : '○ Closed'}</span>
-              </div>
+    for (const a of activeItems) {
+    const unitLabel = a.category === 'gold' ? 'gram' : 'unit';
+    const priceLabel = a.price ? `${fmtNative(a.price, a.category)} / ${unitLabel}` : '';
+    const priceTag = a.priceSrc === 'live' ? `<span class="price-tag">${priceLabel}</span>` : '';
+    const pl = getAssetPL(a);
+    const plHtml = pl.hasTrades
+      ? `<div class="asset-pl ${pl.pl >= 0 ? 'pf-up' : 'pf-down'}" style="font-size:.62rem;display:${editMode ? 'none' : 'block'}">${pl.pl >= 0 ? '+' : ''}${fmtNative(Math.abs(pl.pl), a.category)} (${pl.pl >= 0 ? '+' : ''}${pl.pct.toFixed(1)}%)</div>`
+      : '';
+    html += `
+      <div class="asset-card" data-id="${a.id}">
+        <div class="asset-left">
+          <div class="asset-dot" style="background:${CAT_COLORS[a.category]||'#64748b'}"></div>
+          <div class="asset-info">
+            <div class="asset-name">${a.name}${a.excluded ? '<span class="excluded-badge">(Excluded)</span>' : ''}</div>
+            <div class="asset-meta">
+              ${a.ticker ? `<span class="ticker">${a.ticker}</span>` : ''}
+              ${priceTag}
+              <span class="asset-qty">${fmtQty(a.qty)}</span>
             </div>
           </div>
-          <div class="asset-right">
-            <div class="asset-value">${fmtNative(a.value, a.category)}</div>
-            ${plHtml}
-            <div class="asset-actions-row" style="display:${editMode ? 'flex' : 'none'}">
-              <button class="btn-sm edit" data-id="${a.id}">Edit</button>
-              <button class="btn-sm delete" data-id="${a.id}">×</button>
+        </div>
+        <div class="asset-right">
+          <div class="asset-value">${fmtNative(a.value, a.category)}</div>
+          ${plHtml}
+          <div class="asset-actions-row" style="display:${editMode ? 'flex' : 'none'}">
+            <button class="btn-sm edit" data-id="${a.id}">Edit</button>
+            <button class="btn-sm delete" data-id="${a.id}">×</button>
+          </div>
+        </div>
+      </div>`;
+    }
+
+    // Closed positions (dimmed, shown only when toggle is ON)
+    for (const a of closedItems) {
+    const unitLabel = a.category === 'gold' ? 'gram' : 'unit';
+    const priceLabel = a.price ? `${fmtNative(a.price, a.category)} / ${unitLabel}` : '';
+    const priceTag = a.priceSrc === 'live' ? `<span class="price-tag">${priceLabel}</span>` : '';
+    html += `
+      <div class="asset-card closed" data-id="${a.id}">
+        <div class="asset-left">
+          <div class="asset-dot" style="background:${CAT_COLORS[a.category]||'#64748b'}"></div>
+          <div class="asset-info">
+            <div class="asset-name">${a.name}<span class="closed-badge">(Closed)</span></div>
+            <div class="asset-meta">
+              ${a.ticker ? `<span class="ticker">${a.ticker}</span>` : ''}
+              ${priceTag}
+              <span class="asset-qty">${fmtQty(a.qty)}</span>
             </div>
           </div>
-        </div>`;
+        </div>
+        <div class="asset-right">
+          <div class="asset-value">${fmtNative(a.value, a.category)}</div>
+          <div class="asset-actions-row" style="display:${editMode ? 'flex' : 'none'}">
+            <button class="btn-sm edit" data-id="${a.id}">Edit</button>
+            <button class="btn-sm delete" data-id="${a.id}">×</button>
+          </div>
+        </div>
+      </div>`;
     }
     html += `</div></div>`;
   }
@@ -931,17 +962,6 @@ function renderAssets() {
 
   grid.querySelectorAll('.btn-sm.edit').forEach(b => b.onclick = () => editAsset(b.dataset.id));
   grid.querySelectorAll('.btn-sm.delete').forEach(b => b.onclick = () => { b.stopPropagation(); deleteAsset(b.dataset.id); });
-  // Toggle closed status directly on card
-  grid.querySelectorAll('.closed-toggle').forEach(el => {
-    el.onclick = async e => {
-      e.stopPropagation();
-      const id = el.dataset.id;
-      const asset = currentAssets.find(a => a.id === id);
-      if (!asset) return;
-      const next = !asset.closed;
-      await updateDoc(doc(db, `users/${currentUid}/assets`, id), { closed: next || deleteField() });
-    };
-  });
   // Tap asset card → detail view (skip when in edit mode)
   grid.querySelectorAll('.asset-card').forEach(c => {
     c.style.cursor = editMode ? 'default' : 'pointer';
@@ -964,6 +984,14 @@ document.getElementById('category-tabs').addEventListener('click', e => {
 
 document.getElementById('btn-sort').onclick = () => {
   sortMode = sortMode === 'value' ? 'alpha' : 'value';
+  renderAssets();
+};
+
+document.getElementById('btn-show-closed').onclick = () => {
+  showClosed = !showClosed;
+  const btn = document.getElementById('btn-show-closed');
+  btn.textContent = showClosed ? '● Closed' : '○ Closed';
+  btn.classList.toggle('active', showClosed);
   renderAssets();
 };
 
@@ -1729,7 +1757,14 @@ async function syncAssetFromTrades(ticker) {
   if (!asset) return;
   const qty = Math.max(0, netQty);
   const value = qty * (asset.price || 0);
-  await updateDoc(doc(db, `users/${currentUid}/assets`, asset.id), { qty, value });
+  const updates = { qty, value };
+  // Auto-mark as closed when position is fully sold; unmark if re-opened
+  if (qty <= 0 && !asset.closed && asset.category !== 'retirement') {
+    updates.closed = true;
+  } else if (qty > 0 && asset.closed) {
+    updates.closed = deleteField();
+  }
+  await updateDoc(doc(db, `users/${currentUid}/assets`, asset.id), updates);
 }
 
 /* ── Sync all asset qties from trades ── */
@@ -1860,10 +1895,6 @@ function buildAssetForm(asset, isEdit) {
     <div class="field" style="display:flex;align-items:center;gap:.5rem;margin-top:.3rem">
       <input type="checkbox" id="m-excluded" ${asset?.excluded ? 'checked' : ''}>
       <label for="m-excluded" style="margin:0;font-size:.82rem;color:var(--muted)">Exclude from net-worth calculation (e.g. illiquid)</label>
-    </div>
-    <div class="field" style="display:flex;align-items:center;gap:.5rem;margin-top:.15rem">
-      <input type="checkbox" id="m-closed" ${asset?.closed ? 'checked' : ''}>
-      <label for="m-closed" style="margin:0;font-size:.82rem;color:var(--muted)">Closed position — show dimmed at bottom of list</label>
     </div>`;
 
   return `
@@ -1937,7 +1968,7 @@ document.getElementById('btn-add').onclick = () => {
     }
 
     await addDoc(collection(db, `users/${currentUid}/assets`), {
-      name, ticker, category: cat, qty, price, value, priceSrc, excluded: !!document.getElementById('m-excluded').checked, closed: !!document.getElementById('m-closed').checked,
+      name, ticker, category: cat, qty, price, value, priceSrc, excluded: !!document.getElementById('m-excluded').checked,
       createdAt: serverTimestamp()
     });
     closeModal();
@@ -1994,7 +2025,7 @@ async function editAsset(id) {
     }
 
     await updateDoc(doc(db, `users/${currentUid}/assets`, id), {
-      name, ticker, category: cat, qty, price, value, priceSrc, excluded: !!document.getElementById('m-excluded').checked, closed: !!document.getElementById('m-closed').checked,
+      name, ticker, category: cat, qty, price, value, priceSrc, excluded: !!document.getElementById('m-excluded').checked,
       updatedAt: serverTimestamp()
     });
     closeModal();

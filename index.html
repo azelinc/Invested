@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Invested — Net Worth Tracker</title>
-  <link rel="stylesheet" href="style.css?v=79">
+  <link rel="stylesheet" href="style.css?v=80">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0f172a">
 </head>
@@ -12,7 +12,7 @@
 
   <!-- ============ AUTH SCREEN ============ -->
   <div id="auth-section" style="max-width:420px;margin:5rem auto;padding:1.5rem;">
-    <div class="brand center" style="font-size:2rem;margin-bottom:0.25rem">💰 Invested <small style="font-size:.7rem;color:var(--muted);font-weight:400">v79</small></div>
+    <div class="brand center" style="font-size:2rem;margin-bottom:0.25rem">💰 Invested <small style="font-size:.7rem;color:var(--muted);font-weight:400">v80</small></div>
     <div class="subtitle center" style="margin-bottom:1.5rem;color:var(--muted)">Net Worth Tracker</div>
 
     <div id="login-panel">
@@ -53,7 +53,7 @@
   <!-- ============ MAIN APP ============ -->
   <div id="app-section" style="display:none;">
     <header class="topbar">
-      <div class="brand">💰 Invested <small style="font-size:.55rem;color:var(--muted);font-weight:400">v79</small></div>
+      <div class="brand">💰 Invested <small style="font-size:.55rem;color:var(--muted);font-weight:400">v80</small></div>
       <div class="user-meta">
         <div class="user-meta-row">
           <button id="btn-logout" class="text-btn">Logout</button>
@@ -192,6 +192,7 @@
         </div>
         <div style="display:flex;gap:.4rem;align-items:center;flex-shrink:0">
           <button class="sort-btn" id="btn-sort" title="Sort">↕ Value</button>
+          <button class="sort-btn" id="btn-show-closed" title="Show/hide closed positions">○ Closed</button>
           <button class="sort-btn" id="btn-edit-assets" title="Toggle edit mode">✎</button>
           <button class="currency-btn active" id="btn-currency" title="Toggle currency">MYR</button>
         </div>
@@ -291,10 +292,10 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
-  <script type="module" src="app.js?v=79"></script>
+  <script type="module" src="app.js?v=80"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=79').catch(console.error);
+      navigator.serviceWorker.register('sw.js?v=80').catch(console.error);
     }
   </script>
 </body>

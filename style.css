@@ -538,6 +538,12 @@ button.text-btn {
 }
 .asset-card.closed {
   opacity: .5;
+  filter: grayscale(0.7);
+}
+.asset-card .closed-badge {
+  font-size: .62rem;
+  color: #94a3b8;
+  margin-left: .35rem;
 }
 .asset-card .excluded-badge {
   font-size: .62rem;
