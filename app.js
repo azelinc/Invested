@@ -330,7 +330,7 @@ let currentSavingTx = [];
 let unsubSavingTx = null;
 let unsubOptions = null;
 let editMode = false, showClosed = false;
-const APP_VER = '81'
+const APP_VER = '82'
 
 const CAT_COLORS = {
   fund:'#10b981', stock:'#3b82f6', crypto:'#f59e0b',
@@ -2203,10 +2203,17 @@ function findCategory(ticker) {
 
 function renderOptionsSection() {
   const container = document.getElementById('trading-options');
+
+  // Compute last sync time from most recent option
+  const lastSync = currentOptions.reduce((latest, o) => {
+    return o.lastSync && o.lastSync > latest ? o.lastSync : latest;
+  }, 0);
+  const syncLabel = lastSync
+    ? `Auto-synced ${timeAgo(lastSync)}`
+    : 'Auto-syncs every 30m';
+
   if (!currentOptions.length) {
-    container.innerHTML = '<div class="empty">No active options positions. <button class="text-btn" id="btn-sync-options">⟳ Sync from Moomoo</button></div>';
-    const btn = document.getElementById('btn-sync-options');
-    if (btn) btn.onclick = syncOptionsFromMoomoo;
+    container.innerHTML = `<div class="empty">No active options positions.</div><div style="margin-top:.25rem;font-size:.7rem;color:#64748b;text-align:center">${syncLabel}</div>`;
     return;
   }
 
@@ -2242,26 +2249,18 @@ function renderOptionsSection() {
   </div>`;
   html += '</div>';
 
-  html += '<div style="margin-top:.5rem"><button class="text-btn" id="btn-sync-options">⟳ Sync from Moomoo</button></div>';
+  html += `<div style="margin-top:.25rem;font-size:.7rem;color:#64748b;text-align:right">${syncLabel}</div>`;
   container.innerHTML = html;
-
-  const btn = document.getElementById('btn-sync-options');
-  if (btn) btn.onclick = syncOptionsFromMoomoo;
 }
 
-async function syncOptionsFromMoomoo() {
-  showToast('⟳ Syncing options from Moomoo...');
-  try {
-    const resp = await fetch('/sync-options', { method: 'POST' });
-    if (resp.ok) {
-      showToast('✅ Options synced');
-      // Firestore listener will trigger re-render
-    } else {
-      showToast('❌ Sync failed: ' + (await resp.text()).slice(0, 50));
-    }
-  } catch (e) {
-    showToast('❌ Sync unavailable (backend not configured)');
-  }
+function timeAgo(ts) {
+  const secs = Math.floor((Date.now() - ts) / 1000);
+  if (secs < 60) return 'just now';
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ${mins % 60}m ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
 }
 
 /* ═══════════════════ TOAST ═══════════════════ */

@@ -30,6 +30,9 @@ Net worth tracking PWA. Tracks assets across categories: stocks (US/KLSE), gold,
 **Staging:** Push `main` to `Invested-staging.git` → auto-deploys
 **Production:** Push `main` to `Invested.git` → GitHub Actions auto-deploys
 
+### 🚨 REQUIRED: Deploy Rule
+**NEVER push to production without explicit approval from Azly.** Only staging is fair game. Get a clear "push to prod" or "deploy to prod" before touching the prod repo.
+
 ### Version Bump (three places):
 1. `app.js` → `const APP_VER = 'XX'`
 2. `index.html` → update `?v=N` cache busters on CSS/JS tags
