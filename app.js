@@ -330,7 +330,7 @@ let currentSavingTx = [];
 let unsubSavingTx = null;
 let unsubOptions = null;
 let editMode = false, showClosed = false;
-const APP_VER = '83'
+const APP_VER = '84'
 
 const CAT_COLORS = {
   fund:'#10b981', stock:'#3b82f6', crypto:'#f59e0b',
@@ -2229,7 +2229,7 @@ function renderOptionsSection() {
     totalUnrealizedUsd += unrealized;
     const label = o.ticker || o.name || '—';
     const price = o.underlyingPrice ? `$${o.underlyingPrice.toFixed(2)}` : '';
-    const priceHtml = price ? `<span style="font-size:.7rem;color:#94a3b8;display:block">${price}</span>` : '';
+    const priceHtml = price ? ` <span style="font-size:.7rem;color:#94a3b8">${price}</span>` : '';
     const strike = o.shortStrike ? `$${o.shortStrike}/${o.longStrike ? '$'+o.longStrike : '—'}` : (o.strike ? `$${o.strike}` : '—');
     const expiry = o.expiry || '—';
     const plStr = unrealized >= 0 ? `+$${Math.abs(unrealized).toFixed(0)} 🟢` : `-$${Math.abs(unrealized).toFixed(0)} 🔴`;
