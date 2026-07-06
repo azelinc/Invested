@@ -330,7 +330,7 @@ let currentSavingTx = [];
 let unsubSavingTx = null;
 let unsubOptions = null;
 let editMode = false, showClosed = false;
-const APP_VER = '82'
+const APP_VER = '83'
 
 const CAT_COLORS = {
   fund:'#10b981', stock:'#3b82f6', crypto:'#f59e0b',
@@ -2218,7 +2218,7 @@ function renderOptionsSection() {
   }
 
   let html = '<div class="trading-table">';
-  html += '<div class="trading-tr trading-th"><span>Position</span><span>Strike</span><span>Expiry</span><span>Credit</span><span>P&L</span></div>';
+  html += '<div class="trading-tr trading-th"><span>Position / Price</span><span>Strike</span><span>Expiry</span><span>Credit</span><span>P&L</span></div>';
 
   let totalCredit = 0, totalUnrealizedUsd = 0;
   for (const o of currentOptions) {
@@ -2228,11 +2228,13 @@ function renderOptionsSection() {
     const unrealized = o.unrealizedPL !== undefined ? o.unrealizedPL : (o.currentValue !== undefined ? credit - o.currentValue : 0);
     totalUnrealizedUsd += unrealized;
     const label = o.ticker || o.name || '—';
+    const price = o.underlyingPrice ? `$${o.underlyingPrice.toFixed(2)}` : '';
+    const priceHtml = price ? `<span style="font-size:.7rem;color:#94a3b8;display:block">${price}</span>` : '';
     const strike = o.shortStrike ? `$${o.shortStrike}/${o.longStrike ? '$'+o.longStrike : '—'}` : (o.strike ? `$${o.strike}` : '—');
     const expiry = o.expiry || '—';
     const plStr = unrealized >= 0 ? `+$${Math.abs(unrealized).toFixed(0)} 🟢` : `-$${Math.abs(unrealized).toFixed(0)} 🔴`;
     html += `<div class="trading-tr">
-      <span><strong>${label}</strong></span>
+      <span><strong>${label}</strong>${priceHtml}</span>
       <span>${strike}</span>
       <span style="font-size:.75rem">${expiry}</span>
       <span>$${credit.toFixed(0)}</span>
