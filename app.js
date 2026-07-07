@@ -330,7 +330,7 @@ let currentSavingTx = [];
 let unsubSavingTx = null;
 let unsubOptions = null;
 let editMode = false, showClosed = false;
-const APP_VER = '84'
+const APP_VER = '85'
 
 const CAT_COLORS = {
   fund:'#10b981', stock:'#3b82f6', crypto:'#f59e0b',
@@ -2201,6 +2201,13 @@ function findCategory(ticker) {
   return a ? a.category : 'stock';
 }
 
+function dte(expiryStr) {
+  if (!expiryStr) return 999;
+  const parts = expiryStr.split('-');
+  const d = new Date(+parts[0], +parts[1] - 1, +parts[2]);
+  return Math.ceil((d - Date.now()) / 86400000);
+}
+
 function renderOptionsSection() {
   const container = document.getElementById('trading-options');
 
@@ -2217,28 +2224,50 @@ function renderOptionsSection() {
     return;
   }
 
-  let html = '<div class="trading-table">';
-  html += '<div class="trading-tr trading-th"><span>Position / Price</span><span>Strike</span><span>Expiry</span><span>Credit</span><span>P&L</span></div>';
-
-  let totalCredit = 0, totalUnrealizedUsd = 0;
+  // Build rows, compute DTE + maxLoss, sort by DTE ascending
+  const rows = [];
   for (const o of currentOptions) {
     if (o.status === 'closed') continue;
     const credit = (o.totalCredit || 0) + (o.premiumReceived || 0);
-    totalCredit += credit;
-    const unrealized = o.unrealizedPL !== undefined ? o.unrealizedPL : (o.currentValue !== undefined ? credit - o.currentValue : 0);
-    totalUnrealizedUsd += unrealized;
-    const label = o.ticker || o.name || '—';
-    const price = o.underlyingPrice ? `$${o.underlyingPrice.toFixed(2)}` : '';
+    const width = (o.shortStrike || 0) - (o.longStrike || 0);
+    const qty = o.qty || 1;
+    const maxLoss = width * 100 * qty - credit;
+    const days = dte(o.expiry);
+    rows.push({
+      ticker: o.ticker || o.name || '—',
+      price: o.underlyingPrice,
+      credit,
+      maxLoss,
+      dte: days,
+      expiry: o.expiry || '—',
+      unrealized: o.unrealizedPL !== undefined ? o.unrealizedPL : (o.currentValue !== undefined ? credit - o.currentValue : 0),
+      shortStrike: o.shortStrike,
+      longStrike: o.longStrike,
+    });
+  }
+  rows.sort((a, b) => a.dte - b.dte);
+
+  let html = '<div class="trading-table">';
+  html += '<div class="trading-tr trading-th"><span>Position / Price</span><span>Strike</span><span>DTE</span><span>Credit</span><span>Max Loss</span><span>P&L</span></div>';
+
+  let totalCredit = 0, totalMaxLoss = 0, totalUnrealizedUsd = 0;
+  for (const r of rows) {
+    totalCredit += r.credit;
+    totalMaxLoss += r.maxLoss;
+    totalUnrealizedUsd += r.unrealized;
+    const price = r.price ? `$${r.price.toFixed(2)}` : '';
     const priceHtml = price ? ` <span style="font-size:.7rem;color:#94a3b8">${price}</span>` : '';
-    const strike = o.shortStrike ? `$${o.shortStrike}/${o.longStrike ? '$'+o.longStrike : '—'}` : (o.strike ? `$${o.strike}` : '—');
-    const expiry = o.expiry || '—';
-    const plStr = unrealized >= 0 ? `+$${Math.abs(unrealized).toFixed(0)} 🟢` : `-$${Math.abs(unrealized).toFixed(0)} 🔴`;
+    const strike = r.shortStrike ? `$${r.shortStrike}/${r.longStrike ? '$'+r.longStrike : '—'}` : '—';
+    const dteStr = r.dte <= 0 ? '0' : String(r.dte);
+    const maxLossStr = r.maxLoss > 0 ? `-$${r.maxLoss.toFixed(0)}` : '—';
+    const plStr = r.unrealized >= 0 ? `+$${Math.abs(r.unrealized).toFixed(0)} 🟢` : `-$${Math.abs(r.unrealized).toFixed(0)} 🔴`;
     html += `<div class="trading-tr">
-      <span><strong>${label}</strong>${priceHtml}</span>
+      <span><strong>${r.ticker}</strong>${priceHtml}</span>
       <span>${strike}</span>
-      <span style="font-size:.75rem">${expiry}</span>
-      <span>$${credit.toFixed(0)}</span>
-      <span class="${unrealized >= 0 ? 'pf-up' : 'pf-down'}">${plStr}</span>
+      <span style="font-size:.75rem">${dteStr}d</span>
+      <span>$${r.credit.toFixed(0)}</span>
+      <span style="color:#ef4444">${maxLossStr}</span>
+      <span class="${r.unrealized >= 0 ? 'pf-up' : 'pf-down'}">${plStr}</span>
     </div>`;
   }
 
@@ -2247,6 +2276,7 @@ function renderOptionsSection() {
     <span></span>
     <span></span>
     <span>$${totalCredit.toFixed(0)}</span>
+    <span style="color:#ef4444">-$${totalMaxLoss.toFixed(0)}</span>
     <span class="${totalUnrealizedUsd >= 0 ? 'pf-up' : 'pf-down'}">${totalUnrealizedUsd >= 0 ? '+' : ''}$${totalUnrealizedUsd.toFixed(0)} ${totalUnrealizedUsd >= 0 ? '🟢' : '🔴'}</span>
   </div>`;
   html += '</div>';
