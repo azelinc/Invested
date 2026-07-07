@@ -813,12 +813,13 @@ button.text-btn {
   font-size: .82rem;
 }
 .trading-tr span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#trading-options .trading-tr { grid-template-columns: 1fr 70px 70px 50px 70px; }
+/* Options portfolio: 6 columns — Position | Strike | DTE | Credit | Risk | P&L */
+#trading-options .trading-tr { grid-template-columns: 1fr 45px 28px 42px 42px 48px; }
 #trading-ticker-breakdown .trading-tr { grid-template-columns: 1fr 50px 100px 60px 100px; }
 
 @media (max-width: 480px) {
   .trading-metrics { grid-template-columns: repeat(2, 1fr); }
-  #trading-options .trading-tr,
+  #trading-options .trading-tr { grid-template-columns: 1fr 40px 24px 38px 38px 44px; }
   #trading-ticker-breakdown .trading-tr { grid-template-columns: 1fr 55px 55px 45px 60px; }
   .trading-tr { font-size: .68rem; gap: .2rem; }
 }

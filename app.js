@@ -324,13 +324,14 @@ let currentAssets = [];
 let currentTrades = [];
 let currentOptions = [];
 let currentFilter = 'all';
+let tradingFilter = 'all';
 let currentUid = null;
 let spentExpenses = [];
 let currentSavingTx = [];
 let unsubSavingTx = null;
 let unsubOptions = null;
 let editMode = false, showClosed = false;
-const APP_VER = '85'
+const APP_VER = '86'
 
 const CAT_COLORS = {
   fund:'#10b981', stock:'#3b82f6', crypto:'#f59e0b',
@@ -992,6 +993,15 @@ document.getElementById('category-tabs').addEventListener('click', e => {
   e.target.classList.add('active');
   currentFilter = e.target.dataset.filter;
   renderAssets();
+});
+
+/* ── Trading tab category filter ── */
+document.getElementById('trading-category-tabs').addEventListener('click', e => {
+  if (!e.target.matches('.tab')) return;
+  document.querySelectorAll('#trading-category-tabs .tab').forEach(t => t.classList.remove('active'));
+  e.target.classList.add('active');
+  tradingFilter = e.target.dataset.tradingFilter;
+  renderTrading();
 });
 
 document.getElementById('btn-sort').onclick = () => {
@@ -2050,6 +2060,15 @@ async function deleteAsset(id) {
 }
 
 /* ═══════════════════ TRADING TAB ═══════════════════ */
+function isTradingFilter(ticker) {
+  const a = currentAssets.find(x => (x.ticker || '').toUpperCase() === ticker);
+  let cat = a ? a.category : 'stock';
+  if (cat === 'physical') cat = 'gold';
+  if (tradingFilter === 'all') return true;
+  if (tradingFilter === 'stock') return cat === 'stock' || cat === 'stock-klse' || cat === 'stock-hk';
+  return cat === tradingFilter;
+}
+
 function renderTrading() {
   const allAssets = currentAssets.map(a => a.category === 'physical' ? { ...a, category: 'gold' } : a);
 
@@ -2061,6 +2080,7 @@ function renderTrading() {
   for (const t of currentTrades) {
     const ticker = (t.ticker || '').toUpperCase();
     if (!ticker) continue;
+    if (!isTradingFilter(ticker)) continue;
     if (!byTicker[ticker]) byTicker[ticker] = { qty:0, cost:0, realizedMyr:0, sells:[] };
 
     const b = byTicker[ticker];
@@ -2089,6 +2109,12 @@ function renderTrading() {
   let totalUnrealizedMyr = 0;
   for (const a of allAssets) {
     if (a.excluded) continue;
+    if (tradingFilter !== 'all') {
+      let cat = a.category;
+      if (cat === 'physical') cat = 'gold';
+      if (tradingFilter === 'stock' && !(cat === 'stock' || cat === 'stock-klse' || cat === 'stock-hk')) continue;
+      else if (cat !== tradingFilter) continue;
+    }
     const pl = getAssetPL(a);
     if (pl.hasTrades) {
       const rate = getNativeCurrency(a.category) === 'USD' ? _usdMyr : (getNativeCurrency(a.category) === 'HKD' ? _hkdMyr : 1);
@@ -2248,7 +2274,7 @@ function renderOptionsSection() {
   rows.sort((a, b) => a.dte - b.dte);
 
   let html = '<div class="trading-table">';
-  html += '<div class="trading-tr trading-th"><span>Position / Price</span><span>Strike</span><span>DTE</span><span>Credit</span><span>Max Loss</span><span>P&L</span></div>';
+  html += '<div class="trading-tr trading-th"><span>Position</span><span>Strike</span><span>DTE</span><span>Crd</span><span>Risk</span><span>P&L</span></div>';
 
   let totalCredit = 0, totalMaxLoss = 0, totalUnrealizedUsd = 0;
   for (const r of rows) {
